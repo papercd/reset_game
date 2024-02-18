@@ -140,6 +140,10 @@ class myGame:
         self.frame_count = 0
         self.reset = True 
 
+        self.boost_ready = False 
+
+        self.timer = 0
+        self.time_increment = False
         self.enemies_on_screen = []
 
         for spawner in self.Tilemap.extract([('spawners',0),('spawners',1)]):
@@ -155,6 +159,7 @@ class myGame:
 
     def run(self):
         while True: 
+            self.timer += self.time_increment
             self.frame_count = (self.frame_count+1) % 60 
             self.scroll[0] += (self.player.rect().centerx - self.display.get_width() /2 - self.scroll[0])/30
             self.scroll[1] += (self.player.rect().centery - self.display.get_height() /2 - self.scroll[1])/30
@@ -228,6 +233,7 @@ class myGame:
                     if kill: 
                         self.particles.remove(particle)
             
+            print(self.timer)
 
 
             
@@ -261,10 +267,25 @@ class myGame:
                         self.PLAYER_DEFAULT_SPEED = 2.1
 
                     if event.key == pygame.K_a: 
-                        
+                        if self.player.flip and (self.timer > 3 and self.timer <30):
+                            if self.boost_ready: 
+                                self.player.dash()
+                                self.boost_ready = False 
+                            else: 
+                                self.boost_ready = True 
+
+                        self.timer = 0
+                        self.time_increment = True
                         self.player_movement[0] = True
                     if event.key == pygame.K_d: 
-                        
+                        if not self.player.flip and (self.timer > 3 and self.timer <30):
+                            if self.boost_ready: 
+                                self.player.dash()
+                                self.boost_ready = False 
+                            else: 
+                                self.boost_ready = True 
+                        self.timer = 0
+                        self.time_increment = True 
                         self.player_movement[1] = True
 
                     if event.key == pygame.K_w:
@@ -282,7 +303,8 @@ class myGame:
                         self.PLAYER_DEFAULT_SPEED = 1.5
 
                     if event.key == pygame.K_a: 
-                       
+                         
+                    
                         self.player_movement[0] = False
                     if event.key == pygame.K_d:
                         
