@@ -393,10 +393,10 @@ class PlayerEntity(PhysicsEntity):
         if self.equipped: 
             self.cur_weapon.render(surf,offset)
     
-    def dash(self,dir):
+    def dash(self):
         dust = None
              
-        if dir:
+        if not self.flip:
             dust = Particle(self.game,'dash_right',(self.rect().topleft[0]-1.4,self.rect().topleft[1]+2),velocity=[0,0],frame=0)
             self.velocity[0] = 5.0
         else: 
@@ -511,7 +511,7 @@ class Bullet(PhysicsEntity):
         if self.frames_flown >= 50:
             del self 
             return True
-        print(self.flip)
+        
         #make collision detection more precise. 
         
         self.pos[0] += self.velocity[0] 
@@ -562,6 +562,7 @@ class Bullet(PhysicsEntity):
 
         
         #collision with entities crude method....
+            
         entity_rect = self.rect() 
         for enemy in self.game.enemies_on_screen:
             if entity_rect.colliderect(enemy.rect()):
