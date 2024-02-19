@@ -142,7 +142,17 @@ class Tilemap:
     #We want this function to select out the grids that we want to apply physics onto, so in this case, only 
     # when the grid is solid, grass or stone. 
     
-
+    
+    def grounded_enemeis_return_path(self,pos,dir):
+        nodes = []
+        for y_cor in range(-5,6):
+            if not dir:
+                for x_cor in range(0,6):
+                    tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
+            else: 
+                for x_cor in range(0,-6):
+                    tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
+        
 
     def physics_rects_around(self, pos,size):
         rects = []

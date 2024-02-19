@@ -4,6 +4,7 @@ import random
 import pygame 
 from scripts.particles import Particle
 from scripts.health import HealthBar,StaminaBar
+from scripts.numbers import numbers
 
 class PhysicsEntity:
     #alright, what does a physics entity need? it needs a size, in 2 dimensions, 
@@ -151,9 +152,14 @@ class Canine(Enemy):
         if self.state == 'hit':
             if self.animation.done == True: 
                 self.set_state('idle')
+        if self.aggro: 
+            #when it's supposed to chase the player. 
+            pass 
         else: 
             if self.walking :
-                #things to check when you are walking 
+                #path = tilemap.grounded_enemies_return_path(self,self.pos,self.flip)
+                #things to check when you are walking - just strolling around.
+
 
                 """
                 if movement[0] != 0:
@@ -205,14 +211,15 @@ class PlayerEntity(PhysicsEntity):
 
         super().__init__(game,'player',pos,size)
 
+        self.recov_rate = 0.6
         self.stamina = 100
         self.health = 200
 
         self.health_bar = HealthBar(32,300,200,4,self.health)
-        self.stamina_bar =  StaminaBar(32,310,200,4,self.stamina)
+        self.stamina_bar =  StaminaBar(32,310,98,4,self.stamina)
 
-        self.health_UI = self.game.assets['health_stamina_UI']
-        self.stamina_UI = self.game.assets['health_stamina_UI']
+        self.health_UI = self.game.assets['health_UI']
+        self.stamina_UI = self.game.assets['stamina_UI']
 
         self.jump_count = 2
         self.wall_slide = False
@@ -240,49 +247,38 @@ class PlayerEntity(PhysicsEntity):
             self.animation = self.game.assets[self.type + '/' + ('holding_gun/' if self.equipped else '') + self.state].copy() 
 
     def update_pos(self, tile_map,cursor_pos,movement=(0, 0)):
-
+        
         new_movement = [movement[0],movement[1]]
 
+        
         if self.fatigued: 
-            #wait until stamina is above 60 and you aren't fatigued anymore. 
-            
-            new_movement[0] = new_movement[0] *1.5/1.6
-            if self.stamina >= 60:
+            self.recov_rate = 0.3
+            new_movement[0] *= 0.5
+            if self.stamina >= 80:
                 self.fatigued = False 
-        else:
-            #if you aren't fatigued, then you can run. 
-            if self.stamina > 10: 
-                #then you allow speedup. 
-                if self.running: 
-                    if new_movement[0] != 0:
-                        self.stamina = max(0,self.stamina-1.3)
-            else: 
-                #you are fatigued. you can't run. 
-                self.fatigued = True 
-                if self.running: 
-                    new_movement[0] = new_movement[0] *1.5/1.6
-             
-
-
-        """
-        if self.stamina > 10 and not self.fatigued:
-            #then you allow speedup. 
-            if self.running: 
-                if movement[0] != 0:
-                    self.stamina =max(0,self.stamina-1.3) 
         else: 
-            #you don't speed up. 
+            self.recov_rate = 0.6
             if self.running: 
-                new_movement[0] = new_movement[0]*1.5 / 1.6
-        """
-
+                if self.stamina >= 10:
+                    #then you can run. 
+                    if movement[0] != 0:
+                        self.stamina -= 1.2
+                        new_movement[0] *= 1.4
+                else: 
+                    new_movement[0] *= 0.5
+                    self.fatigued = True 
+            else: 
+                if self.stamina < 10: 
+                    new_movement[0] *= 0.5
+                    self.fatigued = True 
+            
         super().update_pos(tile_map, new_movement)
 
 
         #every frame, the stamina is increased by 0.7
         
 
-        self.stamina = min(100, self.stamina + 0.7)
+        self.stamina = min(100, self.stamina + self.recov_rate)
         self.air_time +=1
         
         self.time += self.timer 
@@ -317,50 +313,10 @@ class PlayerEntity(PhysicsEntity):
                     self.set_state('jump_down')
                
             elif movement[0] != 0:
-                
-                self.set_state('run')
-                 
-                
- 
-                #self.frame_between_taps = self.frame_count
-                #self.frame_count_between_taps = min(1000,self.frame_count_between_taps)
-               
-                """
-                elif (self.frame_count_between_taps > 1 and self.frame_count_between_taps <20) :
-                
-                    if self.boost_on_next_tap and self.running_time < 10:
-                        if self.stamina >=40:
-                            #then you boost.
-                            dust = None
-                            
-                            if movement[0] > 0 and self.boost_dir == False:
-                                dust = Particle(self.game,'dash_right',(self.rect().topleft[0]-1.4,self.rect().topleft[1]+2),velocity=[0,0],frame=0)
-                                self.velocity[0] = 5.0
-                            if movement[0] < 0 and self.boost_dir:
-                                
-                                #flip the dust particle effect
-                                dust = Particle(self.game,'dash_left',(self.rect().topright[0]+1.4,self.rect().topright[1]+2),velocity=[0,0],frame=0)
-                                self.velocity[0] = -5.0
-
-                            
-                            self.game.particles.append(dust)
-                            self.boost_on_next_tap = False
-
-                            #if you dash, decrement the stamina by 40
-                            self.stamina -= 40
-                    else:
-                        if movement[0] > 0:
-                            self.boost_dir = False
-                        if movement[0] < 0: 
-                            self.boost_dir = True 
-                        self.boost_on_next_tap = True 
-                    self.running_time = 0
+                if self.fatigued: 
+                    self.set_state('walk')
                 else: 
-                    self.boost_on_next_tap = False 
-                    self.running_time = 0
-
-                self.frame_count_between_taps =0
-                """
+                    self.set_state('run')
                 if self.slide:
                     self.cut_movement_input = True
                     self.set_state('slide')
@@ -377,7 +333,23 @@ class PlayerEntity(PhysicsEntity):
         self.health_bar.cur_resource = self.health
         self.stamina_bar.cur_resource = self.stamina
 
-
+    def accel(self):
+        #check the stamina and return the speed. 
+        if self.fatigued: 
+            if self.stamina <= 70:
+                return 1
+            else: 
+                self.fatigued = False 
+                self.stamina -= 1.3
+                return 2.3
+        else: 
+            if self.stamina > 10:
+                self.stamina -= 1.3
+                return 2.3
+            else: 
+                self.fatigued = True 
+                return 1
+        
         
     
     def render(self,surf,offset):
@@ -390,21 +362,40 @@ class PlayerEntity(PhysicsEntity):
         surf.blit(self.stamina_UI,(self.stamina_bar.x-2,self.stamina_bar.y-2)) 
         self.stamina_bar.render(surf,(0,0))
 
+        #render the health bar indicator 
+        """
+        health_ind = numbers(self.health_bar.cur_resource)
+        health_ind.render(self.health_bar.x + 88,self.health_bar.y-1,surf)
+        """
+        #render the stamina bar indicator 
+        stamina_ind = numbers(int(self.stamina_bar.cur_resource))
+        stamina_ind.render(self.stamina_bar.x + 38,self.stamina_bar.y-1,surf)
+
         if self.equipped: 
             self.cur_weapon.render(surf,offset)
     
     def dash(self):
-        dust = None
-             
-        if not self.flip:
-            dust = Particle(self.game,'dash_right',(self.rect().topleft[0]-1.4,self.rect().topleft[1]+2),velocity=[0,0],frame=0)
-            self.velocity[0] = 5.0
-        else: 
-            #flip the dust particle effect
-            dust = Particle(self.game,'dash_left',(self.rect().topright[0]+1.4,self.rect().topright[1]+2),velocity=[0,0],frame=0)
-            self.velocity[0] = -5.0
+        if not self.fatigued: 
+            dust = None
+            
+            if self.state == 'jump_up' or self.state == 'jump_down' or self.state == ' wall_slide':
+                if self.flip: 
+                    dust = Particle(self.game,'dash_air',(self.rect().center[0] + 10,self.rect().center[1]),velocity=[1,0],frame=0)
+                    self.velocity[0] = -5.0
+                else: 
+                    dust = Particle(self.game,'dash_air',(self.rect().center[0] - 10,self.rect().center[1]),velocity=[-1,0],frame=0)
+                    self.velocity[0] = 5.0           
+            else:
+                if not self.flip:
+                    dust = Particle(self.game,'dash_right',(self.rect().topleft[0]-1.4,self.rect().topleft[1]+2),velocity=[0,0],frame=0)
+                    self.velocity[0] = 5.0
+                else: 
+                    #flip the dust particle effect
+                    dust = Particle(self.game,'dash_left',(self.rect().topright[0]+1.4,self.rect().topright[1]+2),velocity=[0,0],frame=0)
+                    self.velocity[0] = -5.0
+            self.stamina -= 25
 
-        self.game.particles.append(dust)
+            self.game.particles.append(dust)
         
     def player_jump(self):
         

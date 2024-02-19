@@ -79,11 +79,11 @@ class Weapon:
 
         #you need to define the anchor point positions for every state of the player. 
 
-        left_and_right_anchors = {  True: {"idle": {"left": (2,6), "right": (13,6)}, 'run' :{"left": (1,6), "right": (8,5)} 
+        left_and_right_anchors = {  True: {"idle": {"left": (2,6), "right": (13,6)}, "walk": {"left": (2,6), "right": (13,6)},'run' :{"left": (1,6), "right": (8,5)} 
                                            ,'jump_up' :{"left": (0,4), "right": (9,4)},'jump_down' :{"left": (3,5), "right": (10,4)}
                                            ,'slide' :{ "left" : (11,9) ,"right": (11,9)} , 'wall_slide' : {"left": (4,5), "right": (8,5)} 
                                            },
-                                    False: {"idle": {"left": (2,6), "right": (13,6)}, 'run' :{"left": (7,5), "right": (14,6)} 
+                                    False: {"idle": {"left": (2,6), "right": (13,6)},"walk": {"left": (2,6), "right": (13,6)}, 'run' :{"left": (7,5), "right": (14,6)} 
                                            ,'jump_up' :{"left": (6,4), "right": (15,5)},'jump_down' :{"left": (2,4), "right": (7,5)}
                                            ,'slide' :{ "left": (4,9), "right": (4,9) }, 'wall_slide': {'left' : (7,5), 'right' : (11,5)} 
                                            },
@@ -97,12 +97,13 @@ class Weapon:
         rotate_cap_left = False
         rotate_cap_right = False
 
+        
         if self.holder.state == 'slide' or self.holder.state == 'wall_slide':
             if self.holder.flip:
                 rotate_cap_left = True 
             else: 
                 rotate_cap_right = True 
-
+        
         #get the angle, the pivot, and offset
         if self.flipped: 
             self.pivot = [self.holder.pos[0]+self.right_anchor[0]-offset[0]-1,self.holder.pos[1]+self.right_anchor[1] -offset[1]]

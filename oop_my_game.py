@@ -52,10 +52,11 @@ class myGame:
 
             'player/holding_gun/slide' : Animation(load_images('entities/player/slide',background='transparent'), img_dur =5),
             'player/holding_gun/wall_slide' : Animation(load_images('entities/player/wall_slide',background='transparent'), img_dur =4),
+            'player/holding_gun/walk' : Animation(load_images('entities/player/holding_gun/walk',background='transparent'), img_dur =9),
 
 
-            'health_stamina_UI' : load_image('ui/health/0.png',background='transparent'),
-    
+            'health_UI' : load_image('ui/health/0.png',background='transparent'),
+            'stamina_UI' : load_image('ui/stamina/0.png',background='transparent'),
 
 
             'player/idle' : Animation(load_images('entities/player/idle',background='transparent'), img_dur =6),
@@ -76,6 +77,8 @@ class myGame:
             'particle/jump':Animation(load_images('particles/jump',background= 'black'),img_dur= 2, loop= False),
             'particle/dash_left' : Animation(load_images('particles/dash/left',background='black'),img_dur=1,loop =False),
             'particle/dash_right' : Animation(load_images('particles/dash/right',background='black'),img_dur=1,loop =False),
+            'particle/dash_air' : Animation(load_images('particles/dash/air',background='black'),img_dur=2,loop =False),
+            
 
             'particle/rifle' : Animation(load_images('particles/rifle',background='black'),img_dur=2,loop=False)
         } 
@@ -106,12 +109,7 @@ class myGame:
         self.Tilemap.load('map.json')
 
         #adding leaf shedding particle effects by locating where the trees are in the tilemap and spawning leaves in a certain location with regards to 
-        #that tree location. 
-        
-        self.boxes = [] 
-        for box in self.Tilemap.extract([('decor',3)],keep = True):
-            print('test')
-            self.boxes.append(Box(self,box.pos))
+        #that tree location. W
        
     
         self.leaf_spawners = []
@@ -125,7 +123,7 @@ class myGame:
         
         #self.player2 = PlayerEntity(self,(40,50),(16,16))
 
-        self.PLAYER_DEFAULT_SPEED = 1.5
+        self.PLAYER_DEFAULT_SPEED = 1.8
 
         self.player = PlayerEntity(self,(50,50),(16,16))
         self.player_movement = [False,False]
@@ -159,7 +157,14 @@ class myGame:
 
     def run(self):
         while True: 
+            
             self.timer += self.time_increment
+            if self.timer > 20:
+                self.boost_ready = False 
+                self.time_increment = False 
+                self.timer = 0
+
+
             self.frame_count = (self.frame_count+1) % 60 
             self.scroll[0] += (self.player.rect().centerx - self.display.get_width() /2 - self.scroll[0])/30
             self.scroll[1] += (self.player.rect().centery - self.display.get_height() /2 - self.scroll[1])/30
@@ -197,9 +202,17 @@ class myGame:
             
             #self.player2.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*PLAYER_DEFAULT_SPEED,0))
             #self.player2.render(self.display,render_scroll)
+            
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LSHIFT]:
+                self.player.running = True 
+            else: 
+                self.player.running = False
+            
 
             self.player.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*self.PLAYER_DEFAULT_SPEED,0))
             self.player.render(self.display,render_scroll)
+            
 
             
             
@@ -232,8 +245,6 @@ class myGame:
                         particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
                     if kill: 
                         self.particles.remove(particle)
-            
-            print(self.timer)
 
 
             
@@ -262,31 +273,43 @@ class myGame:
                 
                 #define when the right or left arrow keys are pressed, the corresponding player's movement variable varlues are changed. 
                 if event.type == pygame.KEYDOWN: 
-                    if event.key == pygame.K_LSHIFT: 
-                        self.player.running = True 
-                        self.PLAYER_DEFAULT_SPEED = 2.1
-
                     if event.key == pygame.K_a: 
-                        if self.player.flip and (self.timer > 3 and self.timer <30):
-                            if self.boost_ready: 
-                                self.player.dash()
-                                self.boost_ready = False 
-                            else: 
-                                self.boost_ready = True 
+                       
+                        if self.player.flip: 
+                            if self.timer >=0 and self.timer < 20:
+                                if self.boost_ready:
+                                    self.boost_ready = False 
+                                    self.player.dash()
+                                else: 
+                                    self.boost_ready = True 
+                        else: 
+                            self.boost_ready = True 
+                        
 
+                     
                         self.timer = 0
                         self.time_increment = True
                         self.player_movement[0] = True
+
+                        
+
                     if event.key == pygame.K_d: 
-                        if not self.player.flip and (self.timer > 3 and self.timer <30):
-                            if self.boost_ready: 
-                                self.player.dash()
-                                self.boost_ready = False 
-                            else: 
-                                self.boost_ready = True 
+                        
+                        if not self.player.flip:
+                            if self.timer >=0 and self.timer < 20:
+                                if self.boost_ready: 
+                                    self.boost_ready = False 
+                                    self.player.dash()
+                                else: 
+                                    self.boost_ready = True 
+                        else: 
+                            self.boost_ready = True 
+                            
+                      
                         self.timer = 0
                         self.time_increment = True 
                         self.player_movement[1] = True
+                        
 
                     if event.key == pygame.K_w:
                         self.player.player_jump() 
@@ -298,9 +321,6 @@ class myGame:
                         
                 #define when the right or left arrow keys are then lifted, the corresponding player's movement variable values are changed back to false.
                 if event.type == pygame.KEYUP: 
-                    if event.key == pygame.K_LSHIFT: 
-                        self.player.running = False  
-                        self.PLAYER_DEFAULT_SPEED = 1.5
 
                     if event.key == pygame.K_a: 
                          
