@@ -7,7 +7,9 @@ DEFAULT_NUMBERS = load_images('text/numbers',background='transparent')
 class numbers:
     def __init__(self,number):
         self.number = number 
+        self.length = 0
         self.display_number = self.transform()
+        
 
     def transform(self):
         number = []
@@ -15,6 +17,7 @@ class numbers:
             digit = self.number % 10
             number.append(DEFAULT_NUMBERS[digit])
             self.number = self.number // 10
+            self.length+=4
         return number 
     
     def render(self,x,y,surf):
@@ -22,5 +25,6 @@ class numbers:
         for digit in self.display_number:
             surf.blit(digit,(x - count*4,y))
             count += 1
+
         
 

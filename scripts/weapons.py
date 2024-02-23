@@ -39,7 +39,7 @@ class Weapon:
         bullet = self.magazine.pop()
         if bullet: 
             #then you shoot the bullet.
-            
+            bullet.damage = self.power // 2 
             bullet.angle= self.angle_opening
             #rotate the bullet sprite around the center
             """

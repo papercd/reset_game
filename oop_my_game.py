@@ -3,9 +3,9 @@ import pygame
 import random
 import math
 import sys 
-from scripts.tilemap import Tilemap,Enemy_tile
+from scripts.tilemap import Tilemap
 from scripts.utils import load_image,load_images,Animation
-from scripts.entities import PlayerEntity,Box,Canine
+from scripts.entities import PlayerEntity,Canine
 from scripts.clouds import Clouds
 from scripts.particles import Particle
 from scripts.cursor import Cursor
@@ -19,10 +19,8 @@ class myGame:
         pygame.display.set_caption('myGame')
         self.screen = pygame.display.set_mode((1040,652))
         self.clock = pygame.Clock()
-        self.display = pygame.Surface((self.screen.get_width()//2,self.screen.get_height()//2))
-
-        #so coming back to here, we will define an assets dictionary that contains all of the assets
-        #(sprites) that we are going to use to create our game. 
+        self.display = pygame.Surface((self.screen.get_width()//2,self.screen.get_height()//2),pygame.SRCALPHA)
+        self.display_2 = pygame.Surface((self.screen.get_width()//2,self.screen.get_height()//2))
 
         self.assets = {
             'decor' : load_images('tiles/decor'),
@@ -80,14 +78,17 @@ class myGame:
             'particle/dash_air' : Animation(load_images('particles/dash/air',background='black'),img_dur=2,loop =False),
             
 
-            'particle/rifle' : Animation(load_images('particles/rifle',background='black'),img_dur=2,loop=False)
+            'particle/rifle' : Animation(load_images('particles/rifle',background='black'),img_dur=2,loop=False),
+
         } 
 
         self.enemies = {
             'Canine/black/idle' : Animation(load_images('entities/enemy/Canine/black/idle',background='transparent'),img_dur= 8),
             'Canine/black/run' : Animation(load_images('entities/enemy/Canine/black/run',background= 'transparent'),img_dur= 6),
-            'Canine/black/jump_up': Animation(load_images('entities/enemy/Canine/black/jump/up',background= 'transparent'),img_dur= 3,loop = False),
+            'Canine/black/jump_up': Animation(load_images('entities/enemy/Canine/black/jump/up',background= 'transparent'),img_dur= 2,loop = False),
+            'Canine/black/jump_down': Animation(load_images('entities/enemy/Canine/black/jump/down',background= 'transparent'),img_dur= 3,loop = False),
             'Canine/black/hit': Animation(load_images('entities/enemy/Canine/black/hit',background= 'transparent'),img_dur= 5,loop=False),
+            'Canine/black/grounded_death': Animation(load_images('entities/enemy/Canine/black/death/grounded',background= 'transparent'),img_dur= 5,loop=False),
         }
 
 
@@ -109,25 +110,26 @@ class myGame:
         self.Tilemap.load('map.json')
 
         #adding leaf shedding particle effects by locating where the trees are in the tilemap and spawning leaves in a certain location with regards to 
-        #that tree location. W
+        #that tree location. 
        
     
         self.leaf_spawners = []
         for tree in self.Tilemap.extract([('large_decor',2)],keep = True):
             self.leaf_spawners.append(pygame.Rect(4+tree.pos[0], 4+tree.pos[1],23,13))
         
-        
-           
 
         self.particles = []
-        
-        #self.player2 = PlayerEntity(self,(40,50),(16,16))
+    
 
         self.PLAYER_DEFAULT_SPEED = 1.8
-
         self.player = PlayerEntity(self,(50,50),(16,16))
         self.player_movement = [False,False]
         self.scroll = [0,0]
+
+        #dash variables
+        self.boost_ready = False 
+        self.timer = 0
+        self.time_increment = False
         
         #cursor object 
         pygame.mouse.set_visible(True)
@@ -138,20 +140,15 @@ class myGame:
         self.frame_count = 0
         self.reset = True 
 
-        self.boost_ready = False 
-
-        self.timer = 0
-        self.time_increment = False
+        
         self.enemies_on_screen = []
 
-        for spawner in self.Tilemap.extract([('spawners',0),('spawners',1)]):
+        for spawner in self.Tilemap.extract([('spawners',0),('spawners',1)]):   
             if spawner.variant == 0:
                 self.player.pos = spawner.pos
             else: 
-                #tilemap includes tile objects 
-                #key = str(spawner.pos[0]) + ';' + str(spawner.pos[1])
-                #self.Tilemap.tilemap[key] = Enemy_tile('Canine',0,spawner.pos)
-                #self.Tilemap.bullets.append(Canine(self,spawner.pos,(34,23),'black'))
+
+                #changed later 
                 self.enemies_on_screen.append(Canine(self,spawner.pos,(34,23),'black'))
        
 
@@ -176,33 +173,31 @@ class myGame:
                     self.particles.append(Particle(self,'leaf',pos,velocity=[random.randrange(-100,100)/1000,0.3], frame = random.randint(0,20)))
 
            
+            self.display.fill((0,0,0,0))
+
             #you should now add a cap to how much the map can move in either dimension, which you are going to add later. 
             background = pygame.transform.scale(self.assets['test_background'],(self.display.get_width()*1.4,self.display.get_height()*1.4))
-            self.display.blit(background, [0-(0.4*self.display.get_width())/2- (render_scroll[0]/350) ,0-(0.4*self.display.get_height())/2 - (render_scroll[1]/350)])
+            self.display_2.blit(background, [0-(0.4*self.display.get_width())/2- (render_scroll[0]/350) ,0-(0.4*self.display.get_height())/2 - (render_scroll[1]/350)])
 
             self.gray_clouds.update()
-            self.gray_clouds.render(self.display,render_scroll)
+            self.gray_clouds.render(self.display_2,render_scroll)
 
             self.opp_gray_clouds.update()
-            self.opp_gray_clouds.render(self.display,render_scroll)
+            self.opp_gray_clouds.render(self.display_2,render_scroll)
 
 
-            #Now that you've defined the update and render functions internally in the playerEntity class, 
             #We don't need the code here. 
             self.Tilemap.render(self.display,render_scroll)
 
-
-
             for enemy in self.enemies_on_screen.copy():
-                enemy.update(self.Tilemap,(0,0))
-                enemy.render(self.display, offset = render_scroll)
+                kill = enemy.update(self.Tilemap,(0,0))
+                enemy.render(self.display_2, offset = render_scroll)
+                if kill:
+                    self.enemies_on_screen.remove(enemy)
 
-            
-            
-            
-            #self.player2.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*PLAYER_DEFAULT_SPEED,0))
-            #self.player2.render(self.display,render_scroll)
-            
+        
+
+            #running check
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LSHIFT]:
                 self.player.running = True 
@@ -210,11 +205,7 @@ class myGame:
                 self.player.running = False
             
 
-            self.player.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*self.PLAYER_DEFAULT_SPEED,0))
-            self.player.render(self.display,render_scroll)
-            
-
-            
+           
             
             #rapid fire and single fire toggle 
             if pygame.mouse.get_pressed()[0]:
@@ -234,6 +225,12 @@ class myGame:
             self.cursor.update()
             self.cursor.render(self.display)
             
+            display_mask = pygame.mask.from_surface(self.display)
+            display_sillhouette = display_mask.to_surface(setcolor=(0,0,0,180),unsetcolor=(0,0,0,0))
+
+            for offset in [(-1,0),(1,0),(0,-1),(0,1)]:
+                self.display_2.blit(display_sillhouette,offset)
+           
 
             for particle in self.particles.copy():
                 if particle == None: 
@@ -245,9 +242,6 @@ class myGame:
                         particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
                     if kill: 
                         self.particles.remove(particle)
-
-
-            
 
 
             for bullet in self.bullets_on_screen:
@@ -274,7 +268,6 @@ class myGame:
                 #define when the right or left arrow keys are pressed, the corresponding player's movement variable varlues are changed. 
                 if event.type == pygame.KEYDOWN: 
                     if event.key == pygame.K_a: 
-                       
                         if self.player.flip: 
                             if self.timer >=0 and self.timer < 20:
                                 if self.boost_ready:
@@ -284,17 +277,11 @@ class myGame:
                                     self.boost_ready = True 
                         else: 
                             self.boost_ready = True 
-                        
-
-                     
                         self.timer = 0
                         self.time_increment = True
                         self.player_movement[0] = True
 
-                        
-
                     if event.key == pygame.K_d: 
-                        
                         if not self.player.flip:
                             if self.timer >=0 and self.timer < 20:
                                 if self.boost_ready: 
@@ -304,13 +291,10 @@ class myGame:
                                     self.boost_ready = True 
                         else: 
                             self.boost_ready = True 
-                            
-                      
                         self.timer = 0
                         self.time_increment = True 
                         self.player_movement[1] = True
                         
-
                     if event.key == pygame.K_w:
                         self.player.player_jump() 
                     if event.key == pygame.K_s: 
@@ -323,17 +307,18 @@ class myGame:
                 if event.type == pygame.KEYUP: 
 
                     if event.key == pygame.K_a: 
-                         
-                    
                         self.player_movement[0] = False
                     if event.key == pygame.K_d:
-                        
-                    
                         self.player_movement[1] = False 
                     if event.key == pygame.K_s: 
                         self.player.slide =False 
-        
-            self.screen.blit(pygame.transform.scale(self.display,self.screen.get_size()),(0,0))
+
+            self.display_2.blit(self.display,(0,0))
+            self.player.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*self.PLAYER_DEFAULT_SPEED,0))
+            self.player.render(self.display_2,render_scroll)
+            
+
+            self.screen.blit(pygame.transform.scale(self.display_2,self.screen.get_size()),(0,0))
             pygame.display.update()
 
             self.clock.tick(60)

@@ -98,30 +98,7 @@ class Tilemap:
                 if not keep: 
                     del self.tilemap[loc]
         return matches
-    """
-
-    #this function returns a list of tiles that surround a given position.
-    def tiles_around(self,pos):
-        tiles = []
-        tile_loc = (int(pos[0] // self.tile_size),int(pos[1] // self.tile_size))
-        for offset in SURROUNDING_TILE_OFFSET: 
-            check_loc = str(tile_loc[0]+offset[0]) + ';' + str(tile_loc[1] + offset[1])
-            if check_loc in self.tilemap: 
-                tiles.append(self.tilemap[check_loc])
-        return tiles 
-    
-    #this function will return the list of rectangles(grids) that surround a given position.
-    #We want this function to select out the grids that we want to apply physics onto, so in this case, only 
-    # when the grid is solid, grass or stone. 
-
-    def physics_rects_around(self, pos):
-        rects = []
-        for tile in self.tiles_around(pos):
-            if tile.type in PHYSICS_APPLIED_TILE_TYPES:
-                rect = pygame.Rect(tile.pos[0]*self.tile_size,tile.pos[1]*self.tile_size,self.tile_size,self.tile_size) 
-                rects.append(rect)
-        return rects 
-    """
+  
 
     def tiles_around(self,pos,size):
         tiles = []
@@ -143,16 +120,67 @@ class Tilemap:
     # when the grid is solid, grass or stone. 
     
     
-    def grounded_enemeis_return_path(self,pos,dir):
+    def grounded_enemeis_return_path(self,pos,size,dir,goal):
+
+        size_in_tiles = (size[0]//self.tile_size,size[1]//self.tile_size)
+        infront_tile_offset = self.tile_size #1 if (size[0] - size_in_tiles[0] * self.tile_size <  self.tile_size//2) else self.tile_size//2
+        starting_nodes =[]
         nodes = []
-        for y_cor in range(-5,6):
-            if not dir:
-                for x_cor in range(0,6):
-                    tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
-            else: 
-                for x_cor in range(0,-6):
-                    tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
-        
+       
+
+
+        #I guess you can do that here. 
+        for start_tile_pos in [-2*self.tile_size,-1*self.tile_size,0*self.tile_size,1*self.tile_size,2*self.tile_size]:
+
+            loc = [pos[0]+infront_tile_offset,pos[1]+start_tile_pos]
+            below_loc = [pos[0]+infront_tile_offset,pos[1]+start_tile_pos+self.tile_size]
+            if not self.solid_check(loc) :
+                if self.solid_check(below_loc):
+                    starting_nodes.append(loc)
+                        
+       
+        """     
+        if not goal: 
+            for y_cor in range(-2,3):
+                if not dir:
+                    
+                    
+                    for x_cor in range(0,3):
+                        
+                        loc = [pos[0]+ x_cor*self.tile_size,pos[1]+y_cor*self.tile_size]
+                        #tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
+                        if not self.solid_check(loc):
+                            loc[1] += self.tile_size
+                            if self.solid_check(loc):
+                                loc[1] -=self.tile_size
+                                
+                                
+                                nodes.append(loc)
+                        
+                    
+
+                else: 
+                    starting_nodes =[]
+                    #same here. 
+                    
+                    for x_cor in range(0,-3):
+                        
+                        loc = [pos[0]+ x_cor*self.tile_size,pos[1]+y_cor*self.tile_size]
+                        #tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
+                        if not self.solid_check(loc):
+                            loc[1] += self.tile_size
+                            if self.solid_check(loc):
+                                loc[1] -=self.tile_size
+                                
+                                nodes.append(loc)
+                    
+
+        """
+        return starting_nodes 
+    
+    def find_next_node(self):
+        #nodes on the edge: go down and if empty, add a node to the bottom. continue until you meet a solid tile. 
+        pass 
 
     def physics_rects_around(self, pos,size):
         rects = []
@@ -214,8 +242,8 @@ class Tile:
             #this is where you implement the item drop system. 
             print('item_dropped')
 
-class Enemy_tile(Tile):
-    def __init__(self,type,variant,pos):
-        super().__init__(type,variant,pos)
-
-    
+class Node: 
+    def __init__(self,pos):
+        self.pos = pos 
+        self.direction_x = 0
+        self.direction_y = 0

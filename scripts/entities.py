@@ -4,14 +4,10 @@ import random
 import pygame 
 from scripts.particles import Particle
 from scripts.health import HealthBar,StaminaBar
-from scripts.numbers import numbers
+from scripts.indicator import indicator 
 
 class PhysicsEntity:
-    #alright, what does a physics entity need? it needs a size, in 2 dimensions, 
-    #and for my game, a physics entity will need a sprite, a position, and velocity. We would also need to define
-    #the type of entity it is. Because there are different objects we can render in the game. Like rocks, grass, players. etc.
-    #I will also add the game as a parameter so that any physics entity can access any other entity in the game. 
-
+   
     def __init__(self,game,e_type,pos,size):
         self.game = game 
         self.type = e_type 
@@ -39,16 +35,7 @@ class PhysicsEntity:
     def update_pos(self, tile_map, movement = (0,0)):
         
         self.collisions = {'up' :False,'down' : False, 'left': False, 'right': False }
-        #ok, so this function allows us to update the position of the physics entity
-        #when updating the position of the physics entity, we need to think about movement in two dimensions. 
-        #the x-dimension, where the movement is directly modified by the player, and the y-dimension, where gravity 
-        #is the only factor affecting its movement. 
-
-        #I am going to add the gravity factor here now.gravity affects the player to accelerate downwards. meaning that velocity increases every frame, until the 
-        #velocity reaches terminal velocity. 
-
-
-        #this velocity part should be unique to the player, but whatever. I can change this later. 
+        
         self.velocity[1] = min(5,self.velocity[1] +0.2)
 
         if self.velocity[0] < 0:
@@ -58,19 +45,11 @@ class PhysicsEntity:
 
          
 
-        #I will define a frame movement variable that defines how much movement there should be in this particular frame.
         if self.cut_movement_input:
             frame_movement = (self.velocity[0],self.velocity[1])
         else: 
             frame_movement =  (movement[0] + self.velocity[0], movement[1] + self.velocity[1])
 
-        #and this works because think of it like a frame being a single point in time. the current position in that frame 
-        #plus the velocity of the entity in that frame would give you? The position of the entity in the next frame.            
-
-        #add the collision detection here. So, a physics entity has a size. which represents the dimensions of the encompassing rectangle
-        #if any of the edges of the rectangle meets with an edge of any other rectangle, the position is set to the edge of the
-        # rectangle that is being collided against. 
-        
     
         self.pos[0] += frame_movement[0]
         entity_rect = self.rect() 
@@ -109,9 +88,8 @@ class PhysicsEntity:
 
 
 
-    #for any render function, you will need to pass it the surface on which you want to blit the object on. 
     def render(self,surf,offset):
-        #now here you need a sprite, and you need the position on which you want to print this on. 
+        
         surf.blit(pygame.transform.flip(self.animation.img(),self.flip, False),(self.pos[0]-offset[0]+self.anim_offset[0],self.pos[1]-offset[1]+self.anim_offset[1]))
         
 
@@ -131,7 +109,14 @@ class Canine(Enemy):
     def __init__(self,game,pos,size,color):
         self.color = color 
         self.aggro = False 
+        self.hit_mask = None
+        self.first_hit = False
+
+
         super().__init__(game,pos,size,'Canine')
+
+        self.health = 53
+        self.health_bar = HealthBar(self.pos[0],self.pos[1],20,2,self.health)
         
     def collision_rect(self):
         return pygame.Rect(self.pos[0]+3,self.pos[1]+4,self.size[0]-6,self.size[1]-8)
@@ -143,63 +128,140 @@ class Canine(Enemy):
             self.animation = self.game.enemies[self.type + '/' + self.color  + '/'+ self.state].copy() 
 
     def update(self,tilemap,movement = (0,0)):
+        
+        self.path = tilemap.grounded_enemeis_return_path(self.pos,self.size,self.flip,False)
         #now I want to make the AI of the enemies a bit better 
-
+        
         self.air_time +=1
-        if self.collisions['down']:
-            self.air_time = 0
-
-        if self.state == 'hit':
-            if self.animation.done == True: 
-                self.set_state('idle')
-        if self.aggro: 
-            #when it's supposed to chase the player. 
-            pass 
-        else: 
-            if self.walking :
-                #path = tilemap.grounded_enemies_return_path(self,self.pos,self.flip)
-                #things to check when you are walking - just strolling around.
-
-
-                """
-                if movement[0] != 0:
-                    self.set_state('run')
-
-                if tilemap.solid_check((self.rect().centerx + (-21 if self.flip else 21),self.pos[1]+27)):
+        if self.health >= 0: 
+            if self.aggro: 
+                #when it's supposed to chase the player. 
+                pass 
+            else: 
+                
+                if self.walking :
                     
-                    
-                    if tilemap.solid_check((self.rect().centerx + (-21 if self.flip else 21),self.rect().centery)):
-                        if tilemap.solid_check(((self.rect().centerx + (-21 if self.flip else 21),self.pos[1] - 8))):
-                            self.flip = not self.flip 
+                    if tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8)):
+                        if tilemap.solid_check((self.pos[0] + (-8 if self.flip else 8+self.size[0]),self.pos[1]+8-tilemap.tile_size)):
+                            if tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0] ),self.pos[1]+8-tilemap.tile_size*2)):
+                                self.flip = not self.flip 
+                            else: 
+                                self.velocity[1] = -5
+                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
                         else: 
-                            self.velocity[1] = -3
-                            self.velocity[0] = (-0.5 if self.flip else 0.5)
-                            self.set_state('jump_up')
-                    else: 
-                        movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
-                else: 
-                    if tilemap.solid_check((self.rect().centerx + (-37 if self.flip else 37),self.rect().centery+59)):
-                        movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
-                    else: 
-                        if self.air_time > 3:
-                            self.set_state('jump_up')
                             
+                            self.velocity[1] = -3.3
+                            movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                    else:
+                        if tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8-tilemap.tile_size)):
+                            if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8-tilemap.tile_size*2)):
+                                
+                                self.velocity[1] = -5
+                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                            else: 
+                                self.flip = not self.flip 
+                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
                         else: 
-                            self.flip = not self.flip 
+                            if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8+tilemap.tile_size)):
+                                if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8+tilemap.tile_size*2)):
+                                    if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8+tilemap.tile_size*3)):
+                                        if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8+tilemap.tile_size*4)):
+                                            if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8+tilemap.tile_size*5)):
+                                                self.flip = not self.flip 
+                                            else: 
+                                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                                        else: 
+                                            movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                                    else: 
+                                        movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                                else: 
+                                    movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                            else: 
+                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                            
+                    self.walking = max(0, self.walking - 1)
+                
+                elif random.random() < 0.01:
+                    #things to do when you aren't walking 
                     
-                self.walking = max(0,self.walking - 1)
-                """
-            elif random.random() < 0.01:
-                #things to do when you aren't walking 
-                self.walking = random.randint(30,120)
+                    self.walking = random.randint(30,120)
+
+        #update health bar 
+        self.health_bar.x = self.pos[0] + 5
+        self.health_bar.y = self.pos[1] -5
+        self.health_bar.cur_resource = self.health
+
         super().update_pos(tilemap,movement=movement)
         
+        if self.health <= 0 :
+            if self.collisions['down']:
+                self.set_state('grounded_death')
+            """
+            if self.air_time > 4:
+                if self.velocity[1] < 0:
+                    self.set_state('airborne_death_up')
+            
+                elif self.velocity[1] >0:
+                    self.set_state('airborne_death_down')
+            """
+            if self.animation.done: 
+                del self 
+                return True 
+        else: 
+            if self.collisions['down']:
+                self.air_time = 0
         
-        #you need to implement a new collision detection for sprites that are bigger than a single tile 
-        
+            if self.air_time > 4:
+                
+                if self.velocity[1] < 0:
+                    self.set_state('jump_up')
+            
+                elif self.velocity[1] >0:
+                    self.set_state('jump_down')
+                
+            elif movement[0] != 0:
+                self.set_state('run')    
+            else: 
+                self.set_state('idle') 
 
-#I realized that to specifically add a sprite to the player, I would need to create a separate class that is 
-#inherited from the PhysicsEntity class.
+       
+            return False 
+            
+        
+        
+    def render(self,surf,offset):
+        if self.first_hit:
+            self.health_bar.render(surf,offset)
+        if self.hit_mask:
+            for offset_ in [(-1,0),(1,0),(0,-1),(0,1)]:
+                surf.blit(self.hit_mask.to_surface(unsetcolor=(0,0,0,0),setcolor=(255,255,255,255)),(self.pos[0] - offset[0]+offset_[0],self.pos[1]-offset[1]+offset_[1]))
+            self.hit_mask = None
+        super().render(surf,offset=offset)
+
+        #also render the hit mask 
+        #pathfinding testing
+        """
+        test_surf = pygame.Surface((2,2))
+        test_surf.fill((180,0,0,255))
+        surf.blit(test_surf,(self.pos[0]+self.size[0] + (-8 if self.flip else 8) -offset[0], self.pos[1]- offset[1]))
+        """
+        # (self.pos[0]+self.size[0] + (-8 if self.flip else 8),self.pos[1]//16-tilemap.tile_size)
+        """
+        if self.path: 
+            
+            for loc in self.path: 
+                test_surf = pygame.Surface((2,2))
+                test_surf.fill((180,0,0,255))
+                surf.blit(test_surf,(loc[0] -offset[0],loc[1] - offset[1]))
+        """
+    
+    def hit(self,hit_damage):
+        self.health -= hit_damage
+        self.first_hit = True
+        self.hit_mask = pygame.mask.from_surface(self.animation.img() if not self.flip else pygame.transform.flip(self.animation.img(),True,False))
+        
+    
+        
         
 class PlayerEntity(PhysicsEntity):
     def __init__(self,game,pos,size):
@@ -355,21 +417,23 @@ class PlayerEntity(PhysicsEntity):
     def render(self,surf,offset):
         super().render(surf,offset)
 
-        #render the health bar and the stamina bar
+        #render the health bar and the stamina bar 
+        #add scaling later so that the health and stamina bars can dynamically change. 
         surf.blit(self.health_UI,(self.health_bar.x-2,self.health_bar.y-2)) 
         self.health_bar.render(surf,(0,0))
 
         surf.blit(self.stamina_UI,(self.stamina_bar.x-2,self.stamina_bar.y-2)) 
         self.stamina_bar.render(surf,(0,0))
 
+        #optimize health bar indicator rendering by creating an update function for the indicators 
+
         #render the health bar indicator 
-        """
-        health_ind = numbers(self.health_bar.cur_resource)
-        health_ind.render(self.health_bar.x + 88,self.health_bar.y-1,surf)
-        """
+        health_ind = indicator(int(self.health_bar.cur_resource),int(self.health_bar.max_resource))
+        health_ind.render(self.health_bar.x + 84,self.health_bar.y-1,surf)
+        
         #render the stamina bar indicator 
-        stamina_ind = numbers(int(self.stamina_bar.cur_resource))
-        stamina_ind.render(self.stamina_bar.x + 38,self.stamina_bar.y-1,surf)
+        stamina_ind = indicator(int(self.stamina_bar.cur_resource),int(self.stamina_bar.max_resource))
+        stamina_ind.render(self.stamina_bar.x+34,self.stamina_bar.y-1,surf)
 
         if self.equipped: 
             self.cur_weapon.render(surf,offset)
@@ -478,6 +542,7 @@ class PlayerEntity(PhysicsEntity):
 class Bullet(PhysicsEntity): 
     def __init__(self,game,pos,size,sprite):
         super().__init__(game,'bullet',pos,size)
+        self.damage = 1
         self.angle = 0
         self.speed = 0 
         self.sprite = sprite
@@ -490,7 +555,7 @@ class Bullet(PhysicsEntity):
         self.state = action
 
     def rect(self):
-        #return pygame.Rect(self.pos[0]+self.sprite.get_width()/2,self.pos[1]+self.sprite.get_height()/2,1,1)
+        
         return pygame.Rect(self.pos[0],self.pos[1],self.sprite.get_width(),self.sprite.get_height())
 
         
@@ -505,51 +570,64 @@ class Bullet(PhysicsEntity):
         
         #make collision detection more precise. 
         
-        self.pos[0] += self.velocity[0] 
+        
         
         entity_rect = self.rect()
         for rect in tile_map.physics_rects_around(self.pos,self.size):
             if entity_rect.colliderect(rect):
                 
-                
-                
-                collided_tile = tile_map.return_tile(rect)
-                if collided_tile.type == 'box':
+                bullet_mask = pygame.mask.from_surface(self.sprite)
+                tile_mask = pygame.mask.Mask((rect.width,rect.height))
+                bullet_mask.fill()
+                tile_mask.fill()
+                offset = (entity_rect[0] - rect[0],entity_rect[1] - rect[1])
+             
+                if tile_mask.overlap(bullet_mask,offset):
+                    collided_tile = tile_map.return_tile(rect)
+                    if collided_tile.type == 'box':
                     #air = Particle(self.game,'jump',(self.rect().centerx,self.rect().bottom), velocity=[0,0.1],frame=0)
-                    del tile_map.tilemap[str(collided_tile.pos[0]) + ';' + str(collided_tile.pos[1])]
+                        del tile_map.tilemap[str(collided_tile.pos[0]) + ';' + str(collided_tile.pos[1])]
                     
                     #destroy_box = Particle(self.game,'box_destroy',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
-                    destroy_box_smoke = Particle(self.game,'box_smoke',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
+                        destroy_box_smoke = Particle(self.game,'box_smoke',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
                     #self.game.particles.append(destroy_box)
-                    self.game.particles.append(destroy_box_smoke)
-                    collided_tile.drop_item()
+                        self.game.particles.append(destroy_box_smoke)
+                        collided_tile.drop_item()
         
-                
-                del self 
-                return True
+                    del self 
+                    return True
+        self.pos[0] += self.velocity[0] 
+
         
-        self.pos[1] += self.velocity[1]
+        
         
         entity_rect = self.rect()
         for rect in tile_map.physics_rects_around(self.pos,self.size):
             if entity_rect.colliderect(rect):
                 #then you check for mask collision 
                 
-                
-                collided_tile = tile_map.return_tile(rect)
-                if collided_tile.type == 'box':
-                    del tile_map.tilemap[str(collided_tile.pos[0]) + ';' + str(collided_tile.pos[1])]
+                bullet_mask = pygame.mask.from_surface(self.sprite)
+                tile_mask = pygame.mask.Mask((rect.width,rect.height))
+                bullet_mask.fill()
+                tile_mask.fill()
+                offset = (entity_rect[0] - rect[0],entity_rect[1] - rect[1]) 
+             
+                if tile_mask.overlap(bullet_mask,offset):
+                    collided_tile = tile_map.return_tile(rect)
+                    if collided_tile.type == 'box':
+                    #air = Particle(self.game,'jump',(self.rect().centerx,self.rect().bottom), velocity=[0,0.1],frame=0)
+                        del tile_map.tilemap[str(collided_tile.pos[0]) + ';' + str(collided_tile.pos[1])]
                     
                     #destroy_box = Particle(self.game,'box_destroy',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
-                    destroy_box_smoke = Particle(self.game,'box_smoke',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
+                        destroy_box_smoke = Particle(self.game,'box_smoke',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
                     #self.game.particles.append(destroy_box)
-                    self.game.particles.append(destroy_box_smoke)
-                    collided_tile.drop_item()
-                    
-                
-                del self 
-                return True
+                        self.game.particles.append(destroy_box_smoke)
+                        collided_tile.drop_item()
         
+                
+                    del self 
+                    return True
+        self.pos[1] += self.velocity[1] 
 
         
         #collision with entities crude method....
@@ -557,17 +635,16 @@ class Bullet(PhysicsEntity):
         entity_rect = self.rect() 
         for enemy in self.game.enemies_on_screen:
             if entity_rect.colliderect(enemy.rect()):
-                
-                enemy.set_state('hit')
-                enemy.animation.frame =0
+                enemy.hit(self.damage)
                 del self 
                 return True 
+            
         
              
     
     
     def render(self,surf,offset = (0,0)):
-        test_surface = pygame.Surface((self.sprite.get_width(),self.sprite.get_height()))
+        #test_surface = pygame.Surface((self.sprite.get_width(),self.sprite.get_height()))
         #surf.blit(test_surface,(self.pos[0]-offset[0],self.pos[1]-offset[1]))
         surf.blit(self.sprite, (self.pos[0]-offset[0],self.pos[1]-offset[1]))
         
@@ -576,25 +653,4 @@ class Bullet(PhysicsEntity):
 
     def copy(self):
         return Bullet(self.game,self.pos,self.size,self.sprite)
-
-
-class Box(PhysicsEntity):
-    def __init__(self,game,pos):
-        super().__init__(game,'box',pos,(12,12))
-
-    def set_state(self,action):
-        self.state = action
-
-    def update_pos(self, tile_map, movement=(0, 0)):
-        #it doesn't move right now, I will add this later. 
-        self.collisions = {'up' :False,'down' : False, 'left': False, 'right': False }
-
-        self.entity_rect= self.rect() 
-        return False 
-
-    def render(self,surf,offset): 
-        test_surface = pygame.Surface((12,12))
-        surf.blit(test_surface,(self.pos[0] - offset[0],self.pos[1]- offset[1]))
-
-        #check for collision with a bullet. 
 
