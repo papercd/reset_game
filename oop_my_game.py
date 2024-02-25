@@ -191,6 +191,8 @@ class myGame:
             #We don't need the code here. 
             self.Tilemap.render(self.display,render_scroll)
 
+
+            #optimize this so that only the enemies that are close enough to the screen gets updated and rendered. 
             for enemy in self.enemies_on_screen.copy():
                 kill = enemy.update(self.Tilemap,self.player.pos,(0,0))
                 enemy.render(self.display_2,offset = render_scroll)
@@ -198,7 +200,7 @@ class myGame:
                     self.enemies_on_screen.remove(enemy)
 
         
-
+            
             #running check
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LSHIFT]:
@@ -260,6 +262,7 @@ class myGame:
                         self.bullets_on_screen.remove(bullet)
 
 
+            pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP])
             
                         
             for event in pygame.event.get():

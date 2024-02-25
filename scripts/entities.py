@@ -6,6 +6,7 @@ import math
 from scripts.particles import Particle
 from scripts.health import HealthBar,StaminaBar
 from scripts.indicator import indicator 
+from scripts.tilemap import Node 
 
 class PhysicsEntity:
    
@@ -130,10 +131,12 @@ class Canine(Enemy):
             self.animation = self.game.enemies[self.type + '/' + self.color  + '/'+ self.state].copy() 
 
     def update(self,tilemap,player_pos,movement = (0,0)):
+        self.path = None 
+        #self.path = tilemap.graph_between_ent_player(self.pos,player_pos)
         
-        #self.path = tilemap.astar_pathfinding(self.pos,player_pos)
         #now I want to make the AI of the enemies a bit better 
-        self.grid = tilemap.graph_between_ent_player(self.pos,player_pos)
+         
+        
         self.air_time +=1
 
         if math.dist(self.pos,player_pos) < 12*tilemap.tile_size or self.first_hit:
@@ -147,8 +150,25 @@ class Canine(Enemy):
         if self.health >= 0: 
             if self.aggro : 
                 self.aggro_timer += self.aggro
-                
+                self.path = tilemap.Astar_pathfinding(self.pos,player_pos)
                 #make the entity chase the player. 
+                #the node that the dog is currently on
+                current_node = self.path[0]
+
+                if current_node.left and isinstance(current_node.left,Node):
+                    #the path is towards the left 
+                    pass
+
+                elif current_node.right and isinstance(current_node.left,Node):
+                    #the path is towards the right 
+                    pass 
+
+                elif current_node.up and isinstance(current_node.left,Node):
+                    pass 
+
+                else: 
+                    pass 
+
                 
                     
 
@@ -271,11 +291,19 @@ class Canine(Enemy):
         """
         # (self.pos[0]+self.size[0] + (-8 if self.flip else 8),self.pos[1]//16-tilemap.tile_size)
         
-        if self.grid: 
-            for key in self.grid: 
+        """
+        if self.path: 
+            for key in self.path: 
                 test_surf = pygame.Surface((1,1))
                 test_surf.fill((180,0,0,255))
-                node = self.grid[key]
+                node =self.path[key]
+               
+                surf.blit(test_surf,(node.pos[0]*16 -offset[0] + 8,node.pos[1]*16 - offset[1]+8))
+        """
+        if self.path: 
+            for node in self.path: 
+                test_surf = pygame.Surface((1,1))
+                test_surf.fill((180,0,0,255))
                 surf.blit(test_surf,(node.pos[0]*16 -offset[0] + 8,node.pos[1]*16 - offset[1]+8))
         
     

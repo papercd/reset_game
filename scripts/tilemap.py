@@ -7,9 +7,9 @@
 #then create another class called the tilemap class which is effectively 
 #a list of the tile objects. 
 import json 
-import math
-from queue import PriorityQueue
-import pygame 
+import pygame
+import heapq
+
 
 PHYSICS_APPLIED_TILE_TYPES = {'grass','stone','box'}
 AUTOTILE_TYPES = {'grass','stone'}
@@ -78,12 +78,6 @@ class Tilemap:
         for tile_value in tilemap_data['offgrid']:
             self.offgrid_tiles.append(Tile(tile_value["type"],tile_value["variant"],tile_value["pos"]))
 
-        #create the path graph here. 
-    
-        
-
-            
-
         f.close
 
     def graph_between_ent_player(self,ent_pos,player_pos):
@@ -97,17 +91,17 @@ class Tilemap:
         
         
            
-        for y_cor in range(int(offset[1]) - 8 if int(offset[1]) <=0 else -8, 8 if int(offset[1]) <= 0 else int(offset[1]) + 8,1):
-            for x_cor in range(0,int(offset[0]) + (6 if offset[0] >= 0 else -6),1 if offset[0] >= 0 else -1):
+        for y_cor in range(int(offset[1]) - 15 if int(offset[1]) <=0 else -15, 15 if int(offset[1]) <= 0 else int(offset[1]) + 15,1):
+            for x_cor in range(0,int(offset[0]) + (15 if offset[0] >= 0 else -15),1 if offset[0] >= 0 else -1):
             
 
-                tile_loc =  (ent_tile_pos[0] + x_cor,ent_tile_pos[1] + y_cor)
-                tile_loc_check = str(int(tile_loc[0])) + ';' +str(int(tile_loc[1]))  
+                tile_loc =  (int(ent_tile_pos[0] + x_cor),int(ent_tile_pos[1] + y_cor))
+                tile_loc_check = str(tile_loc[0]) + ';' +str(tile_loc[1])  
                 
                 if tile_loc_check not in self.tilemap:
                     
-                    below_tile_loc = (tile_loc[0],tile_loc[1]+1)
-                    below_tile_loc_check = str(int(below_tile_loc[0])) + ';' + str(int(below_tile_loc[1]))
+                    below_tile_loc = (int(tile_loc[0]),int(tile_loc[1]+1))
+                    below_tile_loc_check = str(below_tile_loc[0]) + ';' + str(below_tile_loc[1])
 
                     if below_tile_loc_check in self.tilemap: 
                         
@@ -118,33 +112,23 @@ class Tilemap:
                         if offset[0] >=0:
                             
                             left_loc = (tile_loc[0]-1,tile_loc[1])
-                            left_loc_check = str(int(left_loc[0])) + ';' + str(int(left_loc[1]))
+                            left_loc_check = str(left_loc[0]) + ';' + str(left_loc[1])
 
-                            #up_loc = (tile_loc[0],tile_loc[1]-1)
-                            #up_loc_check = str(int(up_loc[0])) + ';' + str(int(up_loc[1]))
+                           
 
                             if left_loc in grid: 
                                 grid[left_loc].right = grid[tile_loc]
                                 grid[tile_loc].left = grid[left_loc]
                             elif left_loc_check in self.tilemap: 
-                                # if there is no node on the left side, then check for a tile instead. 
-                                
-                                #if there is a tile there, then add the connection. 
                                 grid[tile_loc].left = self.tilemap[left_loc_check]
 
-                            """
-                            if up_loc in grid: 
-                                grid[up_loc].neighbors.append(grid[tile_loc])
-                                grid[tile_loc].neighbors.append(grid[up_loc])
-                            """
                             
                         else: 
                             
                             right_loc = (tile_loc[0]+1,tile_loc[1])
-                            right_loc_check = str(int(right_loc[0])) + ';' + str(int(right_loc[1]))
+                            right_loc_check = str(right_loc[0]) + ';' + str(right_loc[1])
 
-                            #up_loc = (tile_loc[0],tile_loc[1]-1)
-                            #up_loc_check = str(int(up_loc[0])) + ';' + str(int(up_loc[1]))
+                           
 
                             if right_loc in grid: 
                                 grid[right_loc].left = grid[tile_loc]
@@ -152,13 +136,9 @@ class Tilemap:
 
                             elif right_loc_check in self.tilemap:
                     
-                                #if there is a tile to the right, then add the connection.
+                                
                                 grid[tile_loc].right = self.tilemap[right_loc_check]
-                            """
-                            if up_loc in grid: 
-                                grid[up_loc].neighbors.append(grid[tile_loc])
-                                grid[tile_loc].neighbors.append(grid[up_loc])
-                            """
+                            
                             
         
         #now, for the jump nodes. 
@@ -167,7 +147,7 @@ class Tilemap:
 
         for key in grid: 
             node = grid[key]
-            if node.left == None: 
+            if not node.left : 
                 #if there is no left neighbor: 
                 #add a node there. 
 
@@ -185,7 +165,7 @@ class Tilemap:
                 airborne_grid[new_node_loc] = new_node
                 
                 
-            if node.right == None: 
+            if not node.right : 
                 #if there is no up neighbor: 
                 new_node_loc = (node.pos[0] +1 , node.pos[1])
                 new_node = Node(new_node_loc)
@@ -237,6 +217,84 @@ class Tilemap:
                 #if the space below is another airborne node 
                 airborne_grid[below_loc].up  = node 
                 return airborne_grid[below_loc]
+            
+    def Astar_pathfinding(self,start_pos,end_pos):
+       
+        graph = self.graph_between_ent_player(start_pos,end_pos)
+        
+        #find the start and end nodes 
+        start_x_cor_matches = []
+        end_x_cor_matches = []
+
+        for key in graph: 
+            if key[0] == int(start_pos[0] //self.tile_size):
+                start_x_cor_matches.append(graph[key])
+            if key[0] == int(end_pos[0] //self.tile_size):
+                end_x_cor_matches.append(graph[key])
+
+        node_distances_start = [abs(start_pos[1]-node.pos[1]) for node in start_x_cor_matches]
+        node_distances_end = [abs(end_pos[1]-node.pos[1]) for node in end_x_cor_matches]
+
+        start_node = start_x_cor_matches[node_distances_start.index(min(node_distances_start))]
+        end_node = end_x_cor_matches[node_distances_end.index(min(node_distances_end))]
+
+        # Initialize the open and closed sets
+        open_set = []
+        closed_set = set()
+
+        # Initialize the start node's g score to 0 and its f score to the heuristic estimate
+        start_node.g = 0
+        start_node.f = self.heuristic(start_node.pos, end_node.pos)
+
+        # Add the start node to the open set
+        heapq.heappush(open_set,(start_node.f, start_node))
+        while open_set:
+            # Pop the node with the lowest f score from the open set
+            current_f, current_node = heapq.heappop(open_set)
+
+            # If the current node is the goal, reconstruct the path and return it
+            if current_node == end_node:
+                path = []
+                while current_node is not None:
+                    path.append(current_node)
+                    current_node = current_node.parent
+                return path[::-1]
+
+            # Add the current node to the closed set
+            closed_set.add(current_node)
+
+            # Explore neighbors of the current node
+            for neighbor_node in [current_node.left, current_node.right, current_node.up, current_node.down]:
+                if neighbor_node is None or neighbor_node in closed_set:
+                    continue
+                if isinstance(neighbor_node,Tile):
+                    continue
+                # Calculate tentative g score
+                tentative_g = current_node.g + 1
+
+                # If the neighbor has not been evaluated yet or the new g score is lower
+                if neighbor_node not in open_set or tentative_g < neighbor_node.g:
+                    # Update neighbor's parent and g score
+                    neighbor_node.parent = current_node
+                    neighbor_node.g = tentative_g
+                    neighbor_node.f = tentative_g + self.heuristic(neighbor_node.pos, end_pos)
+
+                    # Add neighbor to the open set
+                    heapq.heappush(open_set, (neighbor_node.f, neighbor_node))
+
+        # If open set is empty and goal not reached, return empty path
+        return []
+        
+
+
+
+
+
+    def heuristic(self, a, b):
+        """
+        Calculate the Manhattan distance heuristic between two points.
+        """
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 
     def extract(self,id_pairs,keep = False):
@@ -325,16 +383,10 @@ class Tilemap:
             surf.blit(self.game.assets[tile.type][tile.variant], (tile.pos[0] - offset[0],tile.pos[1]-offset[1]))
 
         
-        """
-        for key in graph:
-            node = graph[key]
-            test_surf = pygame.Surface((2,2))
-            surf.blit(test_surf,(node.pos[0] * self.tile_size - offset[0] + 8,node.pos[1] * self.tile_size - offset[1]+ 4))
-        """
-        
         
 class Tile: 
     def __init__(self,type,variant,pos):
+        
         self.type = type 
         self.variant = variant
         self.pos = pos 
@@ -345,68 +397,27 @@ class Tile:
 
 class Node: 
     def __init__(self,pos):
+        
         self.pos = pos
-        #neighbors save position values of neighboring nodes. 
         self.left = None
         self.right = None 
         self.up = None
         self.down = None 
-        self.x_dir = 0
-        self.y_dir = 0
-    
+        self.parent = None 
+        self.g = float('inf')
+        self.f = float('inf')
+    def __hash__(self):
+        """
+        Define a hash value based on the position attribute.
+        """
+        return hash(self.pos)
+    def __lt__(self, other):
+        """
+        Define comparison for the less than operator.
+        """
+        return self.f < other.f
+
    
-
-class Graph_between_ent_and_player: 
-
-    def __init__(self,tilemap):
-        self.tilemap = tilemap
-        self.graph = {}
-
-
-    def update(self):
-        self.graph = {}
-        x_cors = []
-        y_cors = []
-
-        for key in self.tilemap.tilemap: 
-            tile = self.tilemap.tilemap[key] 
-            
-            x_cors.append(tile.pos[0])
-            y_cors.append(tile.pos[1])
-        
-        x_cors =sorted(x_cors)
-        y_cors =sorted(y_cors)        
-
-        for x in range(x_cors[0]-50,x_cors[-1]+50):
-            for y in range(y_cors[0]-50,y_cors[-1]+50):
-               
-                tile_loc = (x,y)
-                tile_loc_check = str(tile_loc[0]) + ';' +str(tile_loc[1])  
-
-                if tile_loc_check not in self.tilemap.tilemap:
-                
-                    #then you create a node. 
-                    self.graph[tile_loc_check] = Node(tile_loc)  
-                    left_check = str(tile_loc[0]-1) + ';' + str(tile_loc[1]) 
-        
-                    #check for left connection
-                    if left_check in self.graph: 
-                        #if there is a node to the left, add the connections. 
-                        self.graph[tile_loc_check].neighbors.append(self.graph[left_check])
-                        self.graph[left_check].neighbors.append(self.graph[tile_loc_check])
-
-                """    
-                down_tile_loc = (tile_loc[0], tile_loc[1]+1) 
-                down_tile_loc_check = str(down_tile_loc[0]) + ';' +str(down_tile_loc[1])  
-                
-
-                if down_tile_loc_check in self.tilemap.tilemap: 
-                """
-
-
-
-
-    def return_graph(self):
-        return self.graph        
+     
 
 
