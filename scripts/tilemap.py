@@ -7,7 +7,8 @@
 #then create another class called the tilemap class which is effectively 
 #a list of the tile objects. 
 import json 
-
+import math
+from queue import PriorityQueue
 import pygame 
 
 PHYSICS_APPLIED_TILE_TYPES = {'grass','stone','box'}
@@ -43,6 +44,8 @@ class Tilemap:
         self.tilemap = {}
         
         self.offgrid_tiles = [] 
+        
+        self.path_graph = {}
 
 
     def json_seriable(self):
@@ -57,8 +60,6 @@ class Tilemap:
 
         return seriable_tilemap,seriable_offgrid
 
-    def generate(self):
-        pass 
 
     def save(self,path):
         f = open(path,'w')
@@ -77,8 +78,167 @@ class Tilemap:
         for tile_value in tilemap_data['offgrid']:
             self.offgrid_tiles.append(Tile(tile_value["type"],tile_value["variant"],tile_value["pos"]))
 
-        f.close
+        #create the path graph here. 
     
+        
+
+            
+
+        f.close
+
+    def graph_between_ent_player(self,ent_pos,player_pos):
+
+        grid = {}
+        
+        ent_tile_pos = (ent_pos[0]//self.tile_size, ent_pos[1]//self.tile_size)
+        player_tile_pos = (player_pos[0]//self.tile_size, player_pos[1]//self.tile_size)
+
+        offset = (player_tile_pos[0] - ent_tile_pos[0],player_tile_pos[1] - ent_tile_pos[1])
+        
+        
+           
+        for y_cor in range(int(offset[1]) - 8 if int(offset[1]) <=0 else -8, 8 if int(offset[1]) <= 0 else int(offset[1]) + 8,1):
+            for x_cor in range(0,int(offset[0]) + (6 if offset[0] >= 0 else -6),1 if offset[0] >= 0 else -1):
+            
+
+                tile_loc =  (ent_tile_pos[0] + x_cor,ent_tile_pos[1] + y_cor)
+                tile_loc_check = str(int(tile_loc[0])) + ';' +str(int(tile_loc[1]))  
+                
+                if tile_loc_check not in self.tilemap:
+                    
+                    below_tile_loc = (tile_loc[0],tile_loc[1]+1)
+                    below_tile_loc_check = str(int(below_tile_loc[0])) + ';' + str(int(below_tile_loc[1]))
+
+                    if below_tile_loc_check in self.tilemap: 
+                        
+                        grid[tile_loc] = Node(tile_loc)
+                        
+                        #check for connections. 
+                        
+                        if offset[0] >=0:
+                            
+                            left_loc = (tile_loc[0]-1,tile_loc[1])
+                            left_loc_check = str(int(left_loc[0])) + ';' + str(int(left_loc[1]))
+
+                            #up_loc = (tile_loc[0],tile_loc[1]-1)
+                            #up_loc_check = str(int(up_loc[0])) + ';' + str(int(up_loc[1]))
+
+                            if left_loc in grid: 
+                                grid[left_loc].right = grid[tile_loc]
+                                grid[tile_loc].left = grid[left_loc]
+                            elif left_loc_check in self.tilemap: 
+                                # if there is no node on the left side, then check for a tile instead. 
+                                
+                                #if there is a tile there, then add the connection. 
+                                grid[tile_loc].left = self.tilemap[left_loc_check]
+
+                            """
+                            if up_loc in grid: 
+                                grid[up_loc].neighbors.append(grid[tile_loc])
+                                grid[tile_loc].neighbors.append(grid[up_loc])
+                            """
+                            
+                        else: 
+                            
+                            right_loc = (tile_loc[0]+1,tile_loc[1])
+                            right_loc_check = str(int(right_loc[0])) + ';' + str(int(right_loc[1]))
+
+                            #up_loc = (tile_loc[0],tile_loc[1]-1)
+                            #up_loc_check = str(int(up_loc[0])) + ';' + str(int(up_loc[1]))
+
+                            if right_loc in grid: 
+                                grid[right_loc].left = grid[tile_loc]
+                                grid[tile_loc].right = grid[right_loc]
+
+                            elif right_loc_check in self.tilemap:
+                    
+                                #if there is a tile to the right, then add the connection.
+                                grid[tile_loc].right = self.tilemap[right_loc_check]
+                            """
+                            if up_loc in grid: 
+                                grid[up_loc].neighbors.append(grid[tile_loc])
+                                grid[tile_loc].neighbors.append(grid[up_loc])
+                            """
+                            
+        
+        #now, for the jump nodes. 
+        
+        airborne_grid = {}
+
+        for key in grid: 
+            node = grid[key]
+            if node.left == None: 
+                #if there is no left neighbor: 
+                #add a node there. 
+
+                new_node_loc = (node.pos[0] -1 , node.pos[1])
+                new_node = Node(new_node_loc)
+
+                node.left = new_node 
+                new_node.right = node 
+                
+                #check for downward connections. and continue on doing it until you reach another node or a tile. 
+                self.recursion_depth = 0
+                new_node.down = self.downward_connection(new_node,grid,airborne_grid)
+
+                #once you've added all the connections, add the node to the grid. 
+                airborne_grid[new_node_loc] = new_node
+                
+                
+            if node.right == None: 
+                #if there is no up neighbor: 
+                new_node_loc = (node.pos[0] +1 , node.pos[1])
+                new_node = Node(new_node_loc)
+
+                node.right = new_node 
+                new_node.left = node 
+                
+                #check for downward connections. and continue on doing it until you reach another node or a tile. 
+                self.recursion_depth = 0
+                new_node.down = self.downward_connection(new_node,grid,airborne_grid)
+
+                #once you've added all the connections, add the node to the grid. 
+                airborne_grid[new_node_loc] = new_node
+        
+        for key in airborne_grid: 
+            node = airborne_grid[key]
+            grid[key] = node 
+        
+        return grid
+           
+        
+                 
+    def downward_connection(self,node,grid,airborne_grid):
+        if self.recursion_depth >= 15:
+            return None
+        else: 
+            #check for the position below the given node. 
+            below_loc = (int(node.pos[0]),int(node.pos[1]+1))
+            below_loc_check = str(below_loc[0]) + ';' + str(below_loc[1])
+
+            if below_loc_check not in self.tilemap and below_loc not in grid and below_loc not in airborne_grid:
+                #if the space below is empty, then create a node and continue the downard connection. 
+                new_node = Node(below_loc)
+                new_node.up = node 
+
+                self.recursion_depth +=1
+                airborne_grid[below_loc] = new_node 
+                new_node.down = self.downward_connection(new_node,grid,airborne_grid)
+                
+                return new_node 
+            elif below_loc_check in self.tilemap: 
+                #if the space below has a tile, 
+                return self.tilemap[below_loc_check]
+            elif below_loc in grid: 
+                #if the space below is another node, 
+                grid[below_loc].up = node 
+                return grid[below_loc]
+            else: 
+                #if the space below is another airborne node 
+                airborne_grid[below_loc].up  = node 
+                return airborne_grid[below_loc]
+
+
     def extract(self,id_pairs,keep = False):
         matches = []
         for tile in self.offgrid_tiles.copy():
@@ -115,72 +275,6 @@ class Tilemap:
         return tiles 
                 
     
-    #this function will return the list of rectangles(grids) that surround a given position.
-    #We want this function to select out the grids that we want to apply physics onto, so in this case, only 
-    # when the grid is solid, grass or stone. 
-    
-    
-    def grounded_enemeis_return_path(self,pos,size,dir,goal):
-
-        size_in_tiles = (size[0]//self.tile_size,size[1]//self.tile_size)
-        infront_tile_offset = self.tile_size #1 if (size[0] - size_in_tiles[0] * self.tile_size <  self.tile_size//2) else self.tile_size//2
-        starting_nodes =[]
-        nodes = []
-       
-
-
-        #I guess you can do that here. 
-        for start_tile_pos in [-2*self.tile_size,-1*self.tile_size,0*self.tile_size,1*self.tile_size,2*self.tile_size]:
-
-            loc = [pos[0]+infront_tile_offset,pos[1]+start_tile_pos]
-            below_loc = [pos[0]+infront_tile_offset,pos[1]+start_tile_pos+self.tile_size]
-            if not self.solid_check(loc) :
-                if self.solid_check(below_loc):
-                    starting_nodes.append(loc)
-                        
-       
-        """     
-        if not goal: 
-            for y_cor in range(-2,3):
-                if not dir:
-                    
-                    
-                    for x_cor in range(0,3):
-                        
-                        loc = [pos[0]+ x_cor*self.tile_size,pos[1]+y_cor*self.tile_size]
-                        #tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
-                        if not self.solid_check(loc):
-                            loc[1] += self.tile_size
-                            if self.solid_check(loc):
-                                loc[1] -=self.tile_size
-                                
-                                
-                                nodes.append(loc)
-                        
-                    
-
-                else: 
-                    starting_nodes =[]
-                    #same here. 
-                    
-                    for x_cor in range(0,-3):
-                        
-                        loc = [pos[0]+ x_cor*self.tile_size,pos[1]+y_cor*self.tile_size]
-                        #tile_loc = str(int(pos[0]//self.tile_size)+x_cor) + ';' + str(int(pos[1]//self.tile_size)+y_cor)
-                        if not self.solid_check(loc):
-                            loc[1] += self.tile_size
-                            if self.solid_check(loc):
-                                loc[1] -=self.tile_size
-                                
-                                nodes.append(loc)
-                    
-
-        """
-        return starting_nodes 
-    
-    def find_next_node(self):
-        #nodes on the edge: go down and if empty, add a node to the bottom. continue until you meet a solid tile. 
-        pass 
 
     def physics_rects_around(self, pos,size):
         rects = []
@@ -229,6 +323,14 @@ class Tilemap:
 
         for tile in self.offgrid_tiles: 
             surf.blit(self.game.assets[tile.type][tile.variant], (tile.pos[0] - offset[0],tile.pos[1]-offset[1]))
+
+        
+        """
+        for key in graph:
+            node = graph[key]
+            test_surf = pygame.Surface((2,2))
+            surf.blit(test_surf,(node.pos[0] * self.tile_size - offset[0] + 8,node.pos[1] * self.tile_size - offset[1]+ 4))
+        """
         
         
 class Tile: 
@@ -236,14 +338,75 @@ class Tile:
         self.type = type 
         self.variant = variant
         self.pos = pos 
-    
+   
     def drop_item(self):
         if self.type == 'box':
-            #this is where you implement the item drop system. 
             print('item_dropped')
 
 class Node: 
     def __init__(self,pos):
-        self.pos = pos 
-        self.direction_x = 0
-        self.direction_y = 0
+        self.pos = pos
+        #neighbors save position values of neighboring nodes. 
+        self.left = None
+        self.right = None 
+        self.up = None
+        self.down = None 
+        self.x_dir = 0
+        self.y_dir = 0
+    
+   
+
+class Graph_between_ent_and_player: 
+
+    def __init__(self,tilemap):
+        self.tilemap = tilemap
+        self.graph = {}
+
+
+    def update(self):
+        self.graph = {}
+        x_cors = []
+        y_cors = []
+
+        for key in self.tilemap.tilemap: 
+            tile = self.tilemap.tilemap[key] 
+            
+            x_cors.append(tile.pos[0])
+            y_cors.append(tile.pos[1])
+        
+        x_cors =sorted(x_cors)
+        y_cors =sorted(y_cors)        
+
+        for x in range(x_cors[0]-50,x_cors[-1]+50):
+            for y in range(y_cors[0]-50,y_cors[-1]+50):
+               
+                tile_loc = (x,y)
+                tile_loc_check = str(tile_loc[0]) + ';' +str(tile_loc[1])  
+
+                if tile_loc_check not in self.tilemap.tilemap:
+                
+                    #then you create a node. 
+                    self.graph[tile_loc_check] = Node(tile_loc)  
+                    left_check = str(tile_loc[0]-1) + ';' + str(tile_loc[1]) 
+        
+                    #check for left connection
+                    if left_check in self.graph: 
+                        #if there is a node to the left, add the connections. 
+                        self.graph[tile_loc_check].neighbors.append(self.graph[left_check])
+                        self.graph[left_check].neighbors.append(self.graph[tile_loc_check])
+
+                """    
+                down_tile_loc = (tile_loc[0], tile_loc[1]+1) 
+                down_tile_loc_check = str(down_tile_loc[0]) + ';' +str(down_tile_loc[1])  
+                
+
+                if down_tile_loc_check in self.tilemap.tilemap: 
+                """
+
+
+
+
+    def return_graph(self):
+        return self.graph        
+
+

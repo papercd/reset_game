@@ -80,20 +80,22 @@ class myGame:
 
             'particle/rifle' : Animation(load_images('particles/rifle',background='black'),img_dur=2,loop=False),
 
+            #'particle/rifle_small' : Animation(load_images('particles/bullet_collide_smoke/rifle/small',background='black'),img_dur=2,loop=False),
+
         } 
 
         self.enemies = {
             'Canine/black/idle' : Animation(load_images('entities/enemy/Canine/black/idle',background='transparent'),img_dur= 8),
             'Canine/black/run' : Animation(load_images('entities/enemy/Canine/black/run',background= 'transparent'),img_dur= 6),
-            'Canine/black/jump_up': Animation(load_images('entities/enemy/Canine/black/jump/up',background= 'transparent'),img_dur= 2,loop = False),
-            'Canine/black/jump_down': Animation(load_images('entities/enemy/Canine/black/jump/down',background= 'transparent'),img_dur= 3,loop = False),
+            'Canine/black/jump_up': Animation(load_images('entities/enemy/Canine/black/jump/up',background= 'transparent'),img_dur= 1,loop = False),
+            'Canine/black/jump_down': Animation(load_images('entities/enemy/Canine/black/jump/down',background= 'transparent'),img_dur= 2,loop = False),
             'Canine/black/hit': Animation(load_images('entities/enemy/Canine/black/hit',background= 'transparent'),img_dur= 5,loop=False),
             'Canine/black/grounded_death': Animation(load_images('entities/enemy/Canine/black/death/grounded',background= 'transparent'),img_dur= 5,loop=False),
         }
 
 
         self.weapons = {
-            'ak' : Weapon('rifle',load_image('weapons/ak_holding.png',background='transparent'), 5,15,(2,2))
+            'ak' : Weapon(self,'rifle',load_image('weapons/ak_holding.png',background='transparent'), 5,15,(2,2))
         }
 
         
@@ -119,7 +121,7 @@ class myGame:
         
 
         self.particles = []
-    
+        self.non_animated_particles = []
 
         self.PLAYER_DEFAULT_SPEED = 1.8
         self.player = PlayerEntity(self,(50,50),(16,16))
@@ -190,8 +192,8 @@ class myGame:
             self.Tilemap.render(self.display,render_scroll)
 
             for enemy in self.enemies_on_screen.copy():
-                kill = enemy.update(self.Tilemap,(0,0))
-                enemy.render(self.display_2, offset = render_scroll)
+                kill = enemy.update(self.Tilemap,self.player.pos,(0,0))
+                enemy.render(self.display_2,offset = render_scroll)
                 if kill:
                     self.enemies_on_screen.remove(enemy)
 
@@ -242,6 +244,9 @@ class myGame:
                         particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
                     if kill: 
                         self.particles.remove(particle)
+
+            for particle in self.non_animated_particles.copy():
+                pass 
 
 
             for bullet in self.bullets_on_screen:

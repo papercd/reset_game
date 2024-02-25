@@ -2,6 +2,7 @@
 #of my game. 
 import random
 import pygame 
+import math
 from scripts.particles import Particle
 from scripts.health import HealthBar,StaminaBar
 from scripts.indicator import indicator 
@@ -109,15 +110,16 @@ class Canine(Enemy):
     def __init__(self,game,pos,size,color):
         self.color = color 
         self.aggro = False 
+        self.aggro_timer = 0 
         self.hit_mask = None
         self.first_hit = False
 
 
         super().__init__(game,pos,size,'Canine')
 
-        self.health = 53
+        self.health = 253
         self.health_bar = HealthBar(self.pos[0],self.pos[1],20,2,self.health)
-        
+    
     def collision_rect(self):
         return pygame.Rect(self.pos[0]+3,self.pos[1]+4,self.size[0]-6,self.size[1]-8)
 
@@ -127,16 +129,31 @@ class Canine(Enemy):
             self.state = action 
             self.animation = self.game.enemies[self.type + '/' + self.color  + '/'+ self.state].copy() 
 
-    def update(self,tilemap,movement = (0,0)):
+    def update(self,tilemap,player_pos,movement = (0,0)):
         
-        self.path = tilemap.grounded_enemeis_return_path(self.pos,self.size,self.flip,False)
+        #self.path = tilemap.astar_pathfinding(self.pos,player_pos)
         #now I want to make the AI of the enemies a bit better 
-        
+        self.grid = tilemap.graph_between_ent_player(self.pos,player_pos)
         self.air_time +=1
+
+        if math.dist(self.pos,player_pos) < 12*tilemap.tile_size or self.first_hit:
+            self.aggro = True 
+            
+        if self.aggro_timer >= 1200:
+            self.aggro_timer  = 0
+            self.aggro = False 
+            self.first_hit = False 
+
         if self.health >= 0: 
-            if self.aggro: 
-                #when it's supposed to chase the player. 
-                pass 
+            if self.aggro : 
+                self.aggro_timer += self.aggro
+                
+                #make the entity chase the player. 
+                
+                    
+
+
+
             else: 
                 
                 if self.walking :
@@ -191,19 +208,24 @@ class Canine(Enemy):
         self.health_bar.y = self.pos[1] -5
         self.health_bar.cur_resource = self.health
 
-        super().update_pos(tilemap,movement=movement)
         
+
+        super().update_pos(tilemap,movement=movement)
+       
+        
+
+
         if self.health <= 0 :
             if self.collisions['down']:
                 self.set_state('grounded_death')
-            """
+            #maybe add airborne death animations later 
             if self.air_time > 4:
                 if self.velocity[1] < 0:
-                    self.set_state('airborne_death_up')
+                    self.set_state('grounded_death')
             
                 elif self.velocity[1] >0:
-                    self.set_state('airborne_death_down')
-            """
+                    self.set_state('grounded_death')
+            
             if self.animation.done: 
                 del self 
                 return True 
@@ -236,8 +258,10 @@ class Canine(Enemy):
             for offset_ in [(-1,0),(1,0),(0,-1),(0,1)]:
                 surf.blit(self.hit_mask.to_surface(unsetcolor=(0,0,0,0),setcolor=(255,255,255,255)),(self.pos[0] - offset[0]+offset_[0],self.pos[1]-offset[1]+offset_[1]))
             self.hit_mask = None
+        
         super().render(surf,offset=offset)
-
+       
+        
         #also render the hit mask 
         #pathfinding testing
         """
@@ -246,18 +270,18 @@ class Canine(Enemy):
         surf.blit(test_surf,(self.pos[0]+self.size[0] + (-8 if self.flip else 8) -offset[0], self.pos[1]- offset[1]))
         """
         # (self.pos[0]+self.size[0] + (-8 if self.flip else 8),self.pos[1]//16-tilemap.tile_size)
-        """
-        if self.path: 
-            
-            for loc in self.path: 
-                test_surf = pygame.Surface((2,2))
+        
+        if self.grid: 
+            for key in self.grid: 
+                test_surf = pygame.Surface((1,1))
                 test_surf.fill((180,0,0,255))
-                surf.blit(test_surf,(loc[0] -offset[0],loc[1] - offset[1]))
-        """
+                node = self.grid[key]
+                surf.blit(test_surf,(node.pos[0]*16 -offset[0] + 8,node.pos[1]*16 - offset[1]+8))
+        
     
     def hit(self,hit_damage):
         self.health -= hit_damage
-        self.first_hit = True
+        self.first_hit = True 
         self.hit_mask = pygame.mask.from_surface(self.animation.img() if not self.flip else pygame.transform.flip(self.animation.img(),True,False))
         
     
@@ -570,6 +594,8 @@ class Bullet(PhysicsEntity):
         
         #make collision detection more precise. 
         
+        self.pos[0] += self.velocity[0] 
+        self.pos[1] += self.velocity[1] 
         
         
         entity_rect = self.rect()
@@ -582,7 +608,7 @@ class Bullet(PhysicsEntity):
                 tile_mask.fill()
                 offset = (entity_rect[0] - rect[0],entity_rect[1] - rect[1])
              
-                if tile_mask.overlap(bullet_mask,offset):
+                if tile_mask.overlap_area(bullet_mask,offset)>13:
                     collided_tile = tile_map.return_tile(rect)
                     if collided_tile.type == 'box':
                     #air = Particle(self.game,'jump',(self.rect().centerx,self.rect().bottom), velocity=[0,0.1],frame=0)
@@ -593,13 +619,17 @@ class Bullet(PhysicsEntity):
                     #self.game.particles.append(destroy_box)
                         self.game.particles.append(destroy_box_smoke)
                         collided_tile.drop_item()
-        
+                    
+                    #add bullet collision particle effects 
+                        
+                    
+                    
+
+
                     del self 
                     return True
-        self.pos[0] += self.velocity[0] 
-
         
-        
+        """
         
         entity_rect = self.rect()
         for rect in tile_map.physics_rects_around(self.pos,self.size):
@@ -627,7 +657,8 @@ class Bullet(PhysicsEntity):
                 
                     del self 
                     return True
-        self.pos[1] += self.velocity[1] 
+        """
+        
 
         
         #collision with entities crude method....

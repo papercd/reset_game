@@ -4,7 +4,8 @@ import math
 WEAPONS_THAT_CAN_RAPID_FIRE = {'rifle'}
 
 class Weapon:
-    def __init__(self,type,sprite,fire_rate,power,img_pivot):  
+    def __init__(self,game,type,sprite,fire_rate,power,img_pivot):  
+        self.game = game
         self.type = type 
         self.sprite = sprite 
         self.img_pivot = img_pivot
@@ -50,17 +51,21 @@ class Weapon:
             bullet.velocity = [math.cos(math.radians(-bullet.angle)) * self.power ,math.sin(math.radians(-bullet.angle))*self.power]  
 
             if bullet.velocity[0] > 0 :
+                 
                 bullet.pos = self.opening_pos.copy()
                 bullet.pos[0] -= bullet.velocity[0]
-                bullet.pos[1] += (bullet.velocity[1] if bullet.velocity[1] <0 else -bullet.velocity[1])
+                bullet.pos[1] += (0 if bullet.velocity[1] <0 else -bullet.velocity[1])
                 bullet.flip = False 
             else: 
                 bullet.pos = self.opening_pos.copy()
+                if bullet.velocity[1] > 0 :
+                    bullet.pos[1] -= bullet.velocity[1]
                 bullet.flip = True 
 
             self.knockback = [-bullet.velocity[0]/2,-bullet.velocity[1]/2]
             #rotate the images in the animation. 
-            
+             
+            #eject bullet shells later 
 
 
             
