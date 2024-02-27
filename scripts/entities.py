@@ -3,10 +3,10 @@
 import random
 import pygame 
 import math
-from scripts.particles import Particle
+from scripts.particles import Particle,non_animated_particle
 from scripts.health import HealthBar,StaminaBar
 from scripts.indicator import indicator 
-from scripts.tilemap import Node 
+from scripts.tilemap import Node,Tile
 
 class PhysicsEntity:
    
@@ -114,7 +114,7 @@ class Canine(Enemy):
         self.aggro_timer = 0 
         self.hit_mask = None
         self.first_hit = False
-
+        self.jump_count =1
 
         super().__init__(game,pos,size,'Canine')
 
@@ -130,14 +130,18 @@ class Canine(Enemy):
             self.state = action 
             self.animation = self.game.enemies[self.type + '/' + self.color  + '/'+ self.state].copy() 
 
-    def update(self,tilemap,player_pos,movement = (0,0)):
+    def update(self,tilemap,player_pos,dt,movement = (0,0)):
         self.path = None 
         #self.path = tilemap.graph_between_ent_player(self.pos,player_pos)
         
         #now I want to make the AI of the enemies a bit better 
-         
         
         self.air_time +=1
+
+        if self.collisions['down']:
+            self.jump_count =1
+            self.air_time = 0
+            
 
         if math.dist(self.pos,player_pos) < 12*tilemap.tile_size or self.first_hit:
             self.aggro = True 
@@ -150,25 +154,79 @@ class Canine(Enemy):
         if self.health >= 0: 
             if self.aggro : 
                 self.aggro_timer += self.aggro
-                self.path = tilemap.Astar_pathfinding(self.pos,player_pos)
-                #make the entity chase the player. 
-                #the node that the dog is currently on
-                current_node = self.path[0]
-
-                if current_node.left and isinstance(current_node.left,Node):
-                    #the path is towards the left 
-                    pass
-
-                elif current_node.right and isinstance(current_node.left,Node):
-                    #the path is towards the right 
-                    pass 
-
-                elif current_node.up and isinstance(current_node.left,Node):
-                    pass 
-
+                dir = player_pos[0] - self.pos[0]
+                if dir >= 0:
+                    self.flip = False
+                    self.path = tilemap.Astar_pathfinding((self.pos[0]+32,self.pos[1]+16),player_pos)
                 else: 
-                    pass 
+                    self.flip = True 
+                    self.path = tilemap.Astar_pathfinding((self.pos[0],self.pos[1]+16),player_pos)
+                
+                
+                if self.path:
+                    
+                    #testing pathtaking.
+                    if len(self.path) >1:
+                        current_node = self.path[0]
+                        if current_node.left and current_node.left == self.path[1]:
+                            #then you go left. 
+                            movement = (movement[0] -1.5,movement[1])
+                        elif current_node.right and current_node.right == self.path[1]:
+                            movement = (movement[0] +1.5,movement[1])
+                        elif current_node.up and current_node.up == self.path[1]:
+                            #here you are going to measure the power of the jump that is needed. 
+                            
+                            next_node = current_node.up 
+                            
+                            if isinstance(current_node.down,Tile):
+                                
+                                if next_node:
+                                    count = 2
+                                    power = 2.8
+                                    while next_node: 
+                                        if next_node.up and next_node.up == self.path[count]:
+                                            count += 1 
+                                        power += 3*dt *14
+                                        next_node = next_node.up 
+                                        
+                                    #if self.state != 'jump_up' or self.state != 'jump_down':
+                                
+                                    self.jump(power)
+                                
+                        else: 
+                            
+                            movement = (movement[0] -1.5 if self.flip else movement[0] + 1.5,movement[1] )
+                            pass 
 
+
+                    """
+                    
+                    if dir > 0:
+                        current_node = self.path[0]
+                        if current_node.right and isinstance(current_node.right,Node):
+                            movement = (movement[0] +0.2,movement[1])
+                        if current_node.up and isinstance(current_node.up,Node):
+                            self.jump()
+                            movement = (movement[0] +0.2,movement[1] )
+                        if current_node.down and isinstance(current_node.down,Node):
+                            movement = (movement[0] +0.2,movement[1] )
+
+                    elif dir < 0:
+                        current_node = self.path[0]
+                        if current_node.left and isinstance(current_node.left,Node):
+                            movement = (movement[0] -0.2,movement[1])
+                        if current_node.up and isinstance(current_node.up,Node):
+                            self.jump()
+                            movement = (movement[0] -0.2,movement[1] )
+                        if current_node.down and isinstance(current_node.down,Node):
+                            movement = (movement[0] -0.2,movement[1] )
+                    """
+                
+                       
+                       
+                        
+
+                
                 
                     
 
@@ -184,11 +242,11 @@ class Canine(Enemy):
                                 self.flip = not self.flip 
                             else: 
                                 self.velocity[1] = -5
-                                movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                                movement = (movement[0] - 1.5 if self.flip else movement[0] + 1.5, movement[1])
                         else: 
                             
                             self.velocity[1] = -3.3
-                            movement = (movement[0] - 1.5 if self.flip else 1.5, movement[1])
+                            movement = (movement[0] - 1.5 if self.flip else movement[0] + 1.5, movement[1])
                     else:
                         if tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8-tilemap.tile_size)):
                             if not tilemap.solid_check((self.pos[0]+ (-8 if self.flip else 8+self.size[0]),self.pos[1]+8-tilemap.tile_size*2)):
@@ -269,7 +327,7 @@ class Canine(Enemy):
        
             return False 
             
-        
+    
         
     def render(self,surf,offset):
         if self.first_hit:
@@ -302,10 +360,20 @@ class Canine(Enemy):
         """
         if self.path: 
             for node in self.path: 
+              
                 test_surf = pygame.Surface((1,1))
                 test_surf.fill((180,0,0,255))
                 surf.blit(test_surf,(node.pos[0]*16 -offset[0] + 8,node.pos[1]*16 - offset[1]+8))
-        
+
+    def jump(self,power = 3):
+        if self.state == 'jump_down' or self.state == 'jump_up':
+            #don't do anything. 
+            pass 
+        else: 
+            if self.jump_count==1:
+                self.jump_count -= 1
+                self.velocity[1] = -power
+
     
     def hit(self,hit_damage):
         self.health -= hit_damage
@@ -556,7 +624,7 @@ class PlayerEntity(PhysicsEntity):
             if self.cur_weapon.rapid_firing:
                 if frame % self.cur_weapon.fire_rate == 0:
                     test_shell_image = self.game.bullets['rifle_small'].copy()
-                    test_shell = Bullet(self.game,self.cur_weapon.opening_pos,test_shell_image.get_size(),test_shell_image).copy()
+                    test_shell = Bullet(self.game,self.cur_weapon.opening_pos,test_shell_image.get_size(),test_shell_image,'rifle_small').copy()
                     self.cur_weapon.load(test_shell)
 
                     shot_bullet,smoke,angle = self.cur_weapon.shoot() 
@@ -567,7 +635,7 @@ class PlayerEntity(PhysicsEntity):
 
             else: 
                 test_shell_image = self.game.bullets['rifle_small'].copy()
-                test_shell = Bullet(self.game,self.cur_weapon.opening_pos,test_shell_image.get_size(),test_shell_image).copy()
+                test_shell = Bullet(self.game,self.cur_weapon.opening_pos,test_shell_image.get_size(),test_shell_image,'rifle_small').copy()
                 self.cur_weapon.load(test_shell)
 
                 shot_bullet,smoke,angle = self.cur_weapon.shoot() 
@@ -592,12 +660,12 @@ class PlayerEntity(PhysicsEntity):
 
 
 class Bullet(PhysicsEntity): 
-    def __init__(self,game,pos,size,sprite):
+    def __init__(self,game,pos,size,sprite,type):
         super().__init__(game,'bullet',pos,size)
         self.damage = 1
         self.angle = 0
-        self.speed = 0 
         self.sprite = sprite
+        self.bullet_type = type
         self.center = [self.sprite.get_width()/2,self.sprite.get_height()/2]
         self.set_state('in_place')
         self.frames_flown = 0
@@ -629,34 +697,67 @@ class Bullet(PhysicsEntity):
         entity_rect = self.rect()
         for rect in tile_map.physics_rects_around(self.pos,self.size):
             if entity_rect.colliderect(rect):
+                """
+                pos = [self.pos[0],self.pos[1]]
+        
+                if entity_rect.right >= rect.left and self.velocity[0] >0: 
+                    print('right')
+                    pos[0] += entity_rect.width 
+                    pos[1] += entity_rect.height/2
+                elif entity_rect.left <= rect.right and self.velocity[0] < 0: 
+                    print('left')
+
+                    pos[1] += entity_rect.height/2
+                if entity_rect.top <= rect.bottom and self.velocity[1] <0: 
+                    print('up')
+                    pos[0] += entity_rect.width/2 
                 
+                elif  entity_rect.bottom >= rect.top and self.velocity[1] >0: 
+                    print('down')
+                    pos[0] += entity_rect.width/2
+                    pos[1] += entity_rect.height
+                
+                color = tile_map.return_color(rect)
+
+                offsets = [(-1,0), (0,0), (1,0)]
+                for i in range(random.randint(10,30)):
+                    offset = offsets[random.randint(0,2)]
+                    velocity = pygame.math.Vector2(-self.velocity[0],-self.velocity[1])
+                    self.game.non_animated_particles.append(non_animated_particle([pos[0] + offset[0],pos[1] + offset[1]],color,velocity,tile_map))
+                """
                 bullet_mask = pygame.mask.from_surface(self.sprite)
                 tile_mask = pygame.mask.Mask((rect.width,rect.height))
                 bullet_mask.fill()
                 tile_mask.fill()
                 offset = (entity_rect[0] - rect[0],entity_rect[1] - rect[1])
-             
+
+                """
+                bullet_collide_smoke = Particle(self.game,self.bullet_type,pos,velocity= [-self.velocity[0]/10,-self.velocity[1]/10],frame=0)
+                rotated_bullet_collide_smoke_images = [pygame.transform.rotate(image,self.angle) for image in bullet_collide_smoke.animation.images]
+
+                bullet_collide_smoke.animation.images = rotated_bullet_collide_smoke_images
+                
+
+                self.game.particles.append(bullet_collide_smoke)
+                """
+
                 if tile_mask.overlap_area(bullet_mask,offset)>13:
+                    
                     collided_tile = tile_map.return_tile(rect)
                     if collided_tile.type == 'box':
-                    #air = Particle(self.game,'jump',(self.rect().centerx,self.rect().bottom), velocity=[0,0.1],frame=0)
+             
                         del tile_map.tilemap[str(collided_tile.pos[0]) + ';' + str(collided_tile.pos[1])]
-                    
-                    #destroy_box = Particle(self.game,'box_destroy',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
                         destroy_box_smoke = Particle(self.game,'box_smoke',(rect.centerx,rect.centery),velocity=[0,0],frame = 10)  
-                    #self.game.particles.append(destroy_box)
                         self.game.particles.append(destroy_box_smoke)
                         collided_tile.drop_item()
-                    
-                    #add bullet collision particle effects 
                         
-                    
                     
 
 
                     del self 
                     return True
-        
+                
+       
         """
         
         entity_rect = self.rect()
@@ -711,5 +812,5 @@ class Bullet(PhysicsEntity):
        
 
     def copy(self):
-        return Bullet(self.game,self.pos,self.size,self.sprite)
+        return Bullet(self.game,self.pos,self.size,self.sprite,self.bullet_type)
 

@@ -1,11 +1,4 @@
-#alright, now to what I think is the most questionable part of this session. 
-#adding a tilemap. If I were to create a tilemap class, I would 
-#have an iterable of some kind containing all the tiles, and the tiles 
-#would be defined by the type of tiles it is, the variant of type it is, 
-#and the position that it is supposed to have. So let's define that.
-#Now the idea that pops into mind is to create a tile class, 
-#then create another class called the tilemap class which is effectively 
-#a list of the tile objects. 
+
 import json 
 import pygame
 import heapq
@@ -92,11 +85,13 @@ class Tilemap:
         
            
         for y_cor in range(int(offset[1]) - 15 if int(offset[1]) <=0 else -15, 15 if int(offset[1]) <= 0 else int(offset[1]) + 15,1):
-            for x_cor in range(0,int(offset[0]) + (15 if offset[0] >= 0 else -15),1 if offset[0] >= 0 else -1):
+            for x_cor in range(-15 if offset[0] >= 0 else 15,int(offset[0]) + (15 if offset[0] >= 0 else -15),1 if offset[0] >= 0 else -1):
             
 
                 tile_loc =  (int(ent_tile_pos[0] + x_cor),int(ent_tile_pos[1] + y_cor))
                 tile_loc_check = str(tile_loc[0]) + ';' +str(tile_loc[1])  
+                
+
                 
                 if tile_loc_check not in self.tilemap:
                     
@@ -105,7 +100,10 @@ class Tilemap:
 
                     if below_tile_loc_check in self.tilemap: 
                         
-                        grid[tile_loc] = Node(tile_loc)
+                        new_node = Node(tile_loc)
+                        new_node.down = self.tilemap[below_tile_loc_check]
+
+                        grid[tile_loc] = new_node
                         
                         #check for connections. 
                         
@@ -145,6 +143,8 @@ class Tilemap:
         
         airborne_grid = {}
 
+        
+
         for key in grid: 
             node = grid[key]
             if not node.left : 
@@ -180,6 +180,21 @@ class Tilemap:
                 #once you've added all the connections, add the node to the grid. 
                 airborne_grid[new_node_loc] = new_node
         
+        if ent_tile_pos not in grid and ent_tile_pos not in airborne_grid:
+            #this means that the tile location of the enemy is empty, as well as the tile location beneath it. 
+            new_node = Node(ent_tile_pos)
+            self.recursion_depth = 0
+            new_node.down = self.downward_connection(new_node,grid,airborne_grid)
+            airborne_grid[ent_tile_pos] = new_node 
+
+        if player_tile_pos not in grid and player_tile_pos not in airborne_grid:
+            #this means that the tile location of the player is empty, as well as the tile location beneath it. 
+            new_node = Node(player_tile_pos)
+            self.recursion_depth = 0
+            new_node.down = self.downward_connection(new_node,grid,airborne_grid)
+            airborne_grid[player_tile_pos] = new_node 
+            
+            
         for key in airborne_grid: 
             node = airborne_grid[key]
             grid[key] = node 
@@ -222,21 +237,8 @@ class Tilemap:
        
         graph = self.graph_between_ent_player(start_pos,end_pos)
         
-        #find the start and end nodes 
-        start_x_cor_matches = []
-        end_x_cor_matches = []
-
-        for key in graph: 
-            if key[0] == int(start_pos[0] //self.tile_size):
-                start_x_cor_matches.append(graph[key])
-            if key[0] == int(end_pos[0] //self.tile_size):
-                end_x_cor_matches.append(graph[key])
-
-        node_distances_start = [abs(start_pos[1]-node.pos[1]) for node in start_x_cor_matches]
-        node_distances_end = [abs(end_pos[1]-node.pos[1]) for node in end_x_cor_matches]
-
-        start_node = start_x_cor_matches[node_distances_start.index(min(node_distances_start))]
-        end_node = end_x_cor_matches[node_distances_end.index(min(node_distances_end))]
+        start_node = graph[(start_pos[0]//self.tile_size,start_pos[1]//self.tile_size)]
+        end_node = graph[(end_pos[0]//self.tile_size,end_pos[1]//self.tile_size)]
 
         # Initialize the open and closed sets
         open_set = []
@@ -258,6 +260,7 @@ class Tilemap:
                 while current_node is not None:
                     path.append(current_node)
                     current_node = current_node.parent
+                
                 return path[::-1]
 
             # Add the current node to the closed set
@@ -284,6 +287,8 @@ class Tilemap:
 
         # If open set is empty and goal not reached, return empty path
         return []
+    
+
         
 
 
@@ -351,7 +356,12 @@ class Tilemap:
     def return_tile(self,rect):
         tile_key = str(rect.left//self.tile_size) + ';' + str(rect.top//self.tile_size)
         return self.tilemap[tile_key]
-
+    
+    def return_color(self,rect):
+        tile = self.return_tile(rect)
+        tile_img = self.game.assets[tile.type][tile.variant]
+        return tile_img.get_at((self.tile_size/2,self.tile_size/2))
+    
 
     def autotile(self):
         for loc in self.tilemap:
@@ -406,6 +416,7 @@ class Node:
         self.parent = None 
         self.g = float('inf')
         self.f = float('inf')
+        
     def __hash__(self):
         """
         Define a hash value based on the position attribute.
