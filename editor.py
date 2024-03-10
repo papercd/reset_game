@@ -49,6 +49,7 @@ class Editor:
         self.right_clicking = False 
         self.var_shift = False 
         self.scroll_Fast = False 
+        self.stick_to_grid = False 
 
         #Now we are going to add a toggle button that we are going to use to toggle between off-grid tiles and on-grid tiles. 
         self.on_grid = True 
@@ -87,10 +88,20 @@ class Editor:
             
 
             #you want to know where your selected tile is going to be placed. 
+            if self.stick_to_grid:
+                stick_ind_surf = pygame.Surface((16,16))
+                stick_ind_surf.fill((188,3,3))
+                self.display.blit(stick_ind_surf,(0,60))
+                fin_tile_pos = (tile_pos[0]*self.Tilemap.tile_size - self.scroll[0],tile_pos[1]*self.Tilemap.tile_size - self.scroll[1])
+            else: 
+                fin_tile_pos = mpos 
 
-            #add the toggle part in 
+            #add he toggle part in 
             if self.on_grid: 
-                self.display.blit(selected_tile, (tile_pos[0]*self.Tilemap.tile_size - self.scroll[0],tile_pos[1]*self.Tilemap.tile_size - self.scroll[1]))
+                grid_ind_surf = pygame.Surface((16,16))
+                grid_ind_surf.fill((123,6,6))
+                self.display.blit(grid_ind_surf,(0,28))
+                self.display.blit(selected_tile, fin_tile_pos)
 
                 #now that we have our mouse position, we are going to place the selected tile into our tilemap. 
                 if self.clicking: 
@@ -103,14 +114,14 @@ class Editor:
 
             if not self.on_grid: 
                 #off grid tiles 
-                self.display.blit(selected_tile, mpos)
+                self.display.blit(selected_tile, fin_tile_pos)
 
                 if self.clicking: 
-                    self.Tilemap.offgrid_tiles.append(Tile(self.tile_list[self.tile_group],self.tile_variant, (mpos[0] + self.scroll[0], mpos[1] + self.scroll[1]))) 
+                    self.Tilemap.offgrid_tiles.append(Tile(self.tile_list[self.tile_group],self.tile_variant, (fin_tile_pos[0] + self.scroll[0], fin_tile_pos[1] + self.scroll[1]))) 
                 if self.right_clicking: 
                     for tile in self.Tilemap.offgrid_tiles.copy():
                         check_rect = pygame.Rect(tile.pos[0] - self.scroll[0],tile.pos[1] - self.scroll[1], self.assets[tile.type][tile.variant].get_width(),self.assets[tile.type][tile.variant].get_height())
-                        if check_rect.collidepoint(mpos):
+                        if check_rect.collidepoint(fin_tile_pos):
                             self.Tilemap.offgrid_tiles.remove(tile)
 
             
@@ -166,6 +177,8 @@ class Editor:
                         self.scroll_Fast = not self.scroll_Fast
                     if event.key == pygame.K_g: 
                         self.on_grid = not self.on_grid 
+                    if event.key == pygame.K_h: 
+                        self.stick_to_grid = not self.stick_to_grid
                     if event.key == pygame.K_o: 
                         self.Tilemap.save('map.json')
                     if event.key == pygame.K_t:

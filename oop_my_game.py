@@ -4,23 +4,39 @@ import random
 import math
 import sys 
 from scripts.tilemap import Tilemap
-from scripts.utils import load_image,load_images,Animation
-from scripts.entities import PlayerEntity,Canine
+from scripts.utils import load_image,load_images,Animation, load_sounds
+from scripts.entities import PlayerEntity,Canine,Wheel_bot
 from scripts.clouds import Clouds
 from scripts.particles import Particle
 from scripts.cursor import Cursor
-from scripts.weapons import Weapon 
+from scripts.weapons import Weapon,Wheelbot_weapon
 
 
 
 class myGame:
     def __init__(self):
         pygame.init() 
-        pygame.display.set_caption('myGame')
+        pygame.display.set_caption('Noel.')
         self.screen = pygame.display.set_mode((1040,652))
         self.clock = pygame.Clock()
         self.display = pygame.Surface((self.screen.get_width()//2,self.screen.get_height()//2),pygame.SRCALPHA)
         self.display_2 = pygame.Surface((self.screen.get_width()//2,self.screen.get_height()//2))
+
+        """
+        self.sfx = {
+            'jump': pygame.mixer.Sound(),
+            'dash': pygame.mixer.Sound(),
+            'run' : pygame.mixer.Sound(),
+            'walk': pygame.mixer.Sound(),
+            'land': pygame.mixer.Sound(),
+        }"""
+
+        self.player_sfx = {
+            'run' : load_sounds('data/my_sfx/run'),
+            'jump' : load_sounds('data/my_sfx/jump')
+        }
+       
+    
 
         self.assets = {
             'decor' : load_images('tiles/decor'),
@@ -50,7 +66,7 @@ class myGame:
 
             'player/holding_gun/slide' : Animation(load_images('entities/player/slide',background='transparent'), img_dur =5),
             'player/holding_gun/wall_slide' : Animation(load_images('entities/player/wall_slide',background='transparent'), img_dur =4),
-            'player/holding_gun/walk' : Animation(load_images('entities/player/holding_gun/walk',background='transparent'), img_dur =9),
+            'player/holding_gun/walk' : Animation(load_images('entities/player/holding_gun/walk',background='transparent'), img_dur =7),
 
 
             'health_UI' : load_image('ui/health/0.png',background='transparent'),
@@ -78,9 +94,13 @@ class myGame:
             'particle/dash_air' : Animation(load_images('particles/dash/air',background='black'),img_dur=2,loop =False),
             
 
-            'particle/rifle' : Animation(load_images('particles/rifle',background='black'),img_dur=2,loop=False),
+            'particle/smoke/rifle' : Animation(load_images('particles/shoot/rifle',background='transparent'),img_dur=3,loop=False),
 
-            'particle/rifle_small' : Animation(load_images('particles/bullet_collide_smoke/rifle/small',background='black'),img_dur=2,loop=False),
+            'particle/smoke/rifle_small' : Animation(load_images('particles/bullet_collide_smoke/rifle/small',background='black'),img_dur=2,loop=False),
+
+            'particle/smoke/laser_weapon' : Animation(load_images('particles/shoot/laser_weapon',background='transparent'),img_dur=3,loop=False),
+
+
 
         } 
 
@@ -91,10 +111,22 @@ class myGame:
             'Canine/black/jump_down': Animation(load_images('entities/enemy/Canine/black/jump/down',background= 'transparent'),img_dur= 3,loop = False),
             'Canine/black/hit': Animation(load_images('entities/enemy/Canine/black/hit',background= 'transparent'),img_dur= 5,loop=False),
             'Canine/black/grounded_death': Animation(load_images('entities/enemy/Canine/black/death/grounded',background= 'transparent'),img_dur= 5,loop=False),
+
+            'Wheel_bot/idle': Animation(load_images('entities/enemy/Wheel_bot/idle',background='transparent'),img_dur= 6),
+            'Wheel_bot/move': Animation(load_images('entities/enemy/Wheel_bot/move',background='transparent'),img_dur= 7),
+            'Wheel_bot/dormant': Animation(load_images('entities/enemy/Wheel_bot/dormant',background='transparent'),img_dur=2,loop=True),
+            'Wheel_bot/alert': Animation(load_images('entities/enemy/Wheel_bot/alert',background='transparent'),img_dur=4,loop=False),
+            'Wheel_bot/wake': Animation(load_images('entities/enemy/Wheel_bot/wake',background='transparent'),img_dur=5,loop=False),
+            'Wheel_bot/new_charge': Animation(load_images('entities/enemy/Wheel_bot/new_charge',background='transparent'),img_dur=3,loop=True),
+            'Wheel_bot/shoot': Animation(load_images('entities/enemy/Wheel_bot/shoot',background='transparent'),img_dur=4,loop=False),
+
+
+
         }
 
 
         self.weapons = {
+            'laser_weapon': Wheelbot_weapon(self,Animation(load_images('entities/enemy/Wheel_bot/charge_weapon',background='transparent'),img_dur=5,loop=True)),
             'ak' : Weapon(self,'rifle',load_image('weapons/ak_holding.png',background='transparent'), 5,15,(2,2))
         }
 
@@ -113,7 +145,7 @@ class myGame:
 
         #adding leaf shedding particle effects by locating where the trees are in the tilemap and spawning leaves in a certain location with regards to 
         #that tree location. 
-       
+
     
         self.leaf_spawners = []
         for tree in self.Tilemap.extract([('large_decor',2)],keep = True):
@@ -123,7 +155,11 @@ class myGame:
         self.particles = []
         self.non_animated_particles = []
 
-        self.PLAYER_DEFAULT_SPEED = 1.8
+        self.PLAYER_DEFAULT_SPEED = 2
+        self.player_cur_vel = 0
+        self.accel_decel_rate = 0.34
+        self.accelerated_movement = 0
+
         self.player = PlayerEntity(self,(50,50),(16,16))
         self.player_movement = [False,False]
         self.scroll = [0,0]
@@ -133,30 +169,52 @@ class myGame:
         self.timer = 0
         self.time_increment = False
         
+        
         #cursor object 
         pygame.mouse.set_visible(True)
         self.cursor = Cursor(self,(50,50),(4,4),'default')
 
         #weapon equip
-        self.player.equip_weapon(self.weapons['ak'])
+        
         self.frame_count = 0
         self.reset = True 
         self.dt = 0
+        self.player.equip_weapon(self.weapons['ak'])
+
         
         self.enemies_on_screen = []
+        
 
-        for spawner in self.Tilemap.extract([('spawners',0),('spawners',1)]):   
+        
+        #spawner order: 0 : player, 1: canine: 2: wheel bot 
+        #Canine is your pet, not your enemy. 
+        
+        for spawner in self.Tilemap.extract([('spawners',0),('spawners',1),('spawners',2)]):   
             if spawner.variant == 0:
                 self.player.pos = spawner.pos
-            else: 
+            elif spawner.variant == 1: 
 
-                #changed later 
+                #canine 
                 self.enemies_on_screen.append(Canine(self,spawner.pos,(34,23),'black'))
+            
+        
+            elif spawner.variant == 2:
+                
+                 self.enemies_on_screen.append(Wheel_bot(self,spawner.pos,(20,22)))
        
 
     def run(self):
+        """
+        pygame.mixer.music.load('data/music.wav')
+        pygame.mixer.music.set_volume(0.2)
+        pygame.mixer.music.play(-1)
+        """
+
         while True: 
             
+         
+            
+                 
             self.timer += self.time_increment
             if self.timer > 20:
                 self.boost_ready = False 
@@ -244,6 +302,9 @@ class myGame:
                     particle.render(self.display,offset = render_scroll)
                     if particle.type =='leaf':
                         particle.pos[0] += math.sin(particle.animation.frame * 0.035) * 0.3
+                    if particle.type[0:5] == 'smoke':
+                        
+                        particle.pos = self.player.cur_weapon.opening_pos
                     if kill: 
                         self.particles.remove(particle)
             
@@ -254,7 +315,7 @@ class myGame:
                     self.non_animated_particles.remove(particle)
                 else: 
                     kill = particle.update(self.dt)
-                    particle.velocity[1] += 3
+                    particle.velocity[1] += 15
                     particle.render(self.display,offset =render_scroll)
                     if kill:
                         self.non_animated_particles.remove(particle)
@@ -297,6 +358,8 @@ class myGame:
                             self.boost_ready = True 
                         self.timer = 0
                         self.time_increment = True
+
+                        
                         self.player_movement[0] = True
 
                     if event.key == pygame.K_d: 
@@ -331,8 +394,31 @@ class myGame:
                     if event.key == pygame.K_s: 
                         self.player.slide =False 
 
+            #add decel and accel here 
+                        
+            if(self.player_movement[1]-self.player_movement[0])  >0 :
+                #means that the intent of the player movement is to the right.  
+                self.player_cur_vel = min( 1.3*self.PLAYER_DEFAULT_SPEED,self.accel_decel_rate + self.player_cur_vel)
+                #self.accelerated_movement = min(1.3*self.PLAYER_DEFAULT_SPEED,self.player_cur_vel)
+            elif (self.player_movement[1]-self.player_movement[0]) <0 :
+                #means that the intent of the player movement is to the left.  
+                self.player_cur_vel = max( -1.3*self.PLAYER_DEFAULT_SPEED,self.player_cur_vel- self.accel_decel_rate )
+                #self.accelerated_movement = max(-1.3*self.PLAYER_DEFAULT_SPEED,self.player_cur_vel)
+            else: 
+                if self.player_cur_vel >= 0 :
+                    self.player_cur_vel = max(0,self.player_cur_vel - self.accel_decel_rate)
+                    #self.accelerated_movement = max(0,self.pl)
+                else:
+                    self.player_cur_vel = min(0,self.player_cur_vel + self.accel_decel_rate)
+                
+                    
+                
+            
             self.display_2.blit(self.display,(0,0))
-            self.player.update_pos(self.Tilemap,self.cursor.pos,((self.player_movement[1]-self.player_movement[0])*self.PLAYER_DEFAULT_SPEED,0))
+            
+            #self.player.update_pos(self.Tilemap,self.cursor.pos,self.frame_count,((self.player_movement[1]-self.player_movement[0])*self.PLAYER_DEFAULT_SPEED,0))
+            self.player.update_pos(self.Tilemap,self.cursor.pos,self.frame_count,(self.player_cur_vel,0))
+            
             self.player.render(self.display_2,render_scroll)
             
 

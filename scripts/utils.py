@@ -31,7 +31,14 @@ def load_images(path,background = 'black'):
     return sprites
 
 
+def load_sounds(path):
+    sound_lib  = {}
+    for dir in os.listdir(path):
+        key = dir.split('.',1)[0]
+        sound_lib[key] = pygame.mixer.Sound(path + '/' + dir)
 
+    return sound_lib 
+    
 
 class Animation: 
     def __init__(self, images, img_dur = 5, halt = False, loop = True):

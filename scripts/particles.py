@@ -33,12 +33,13 @@ class Particle:
 
 
 class non_animated_particle():
-    def __init__(self,pos,color,velocity,tilemap):
+    def __init__(self,pos,color,velocity,tilemap,life = 60):
         self.time = 0
         self.pos = pos
         self.color = color
         self.tilemap = tilemap
-        self.velocity = velocity.rotate(random.uniform(-90,90))
+        self.velocity = velocity
+        self.life = life 
         self.create_surf()
     
     #the default non-animated particle is a circle. 
@@ -54,11 +55,11 @@ class non_animated_particle():
         for rect in self.tilemap.physics_rects_around(self.pos,(1,1)):
             if self.rect.colliderect(rect):
                 return True 
-        if self.time > 60:
+        if self.time > self.life:
             return True 
        
-        self.pos[0] += self.velocity[0] * dt * 10
-        self.pos[1] += self.velocity[1] * dt * 6
+        self.pos[0] += self.velocity[0] * dt 
+        self.pos[1] += self.velocity[1] * dt 
         self.rect.topleft = self.pos 
         return False 
     
